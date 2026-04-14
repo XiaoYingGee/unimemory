@@ -76,6 +76,8 @@ export interface SearchMemoryRequest {
   scope_filter?: MemoryScope[];
   project_id?: string;
   top_k?: number;              // 默认 5
+  min_similarity?: number;     // 默认 0.7，向量相似度阈值
+  min_confidence?: number;     // 默认 0.0，过滤低质量记忆（雪琪 review 补充）
   include_archived?: boolean;  // 默认 false
   min_similarity?: number;     // 默认 0.7
 }
