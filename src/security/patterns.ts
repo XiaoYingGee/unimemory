@@ -24,8 +24,9 @@ export const BLOCK_PATTERNS: BlockPattern[] = [
   // 1.1 凭证与密钥类
   {
     name: 'openai-api-key',
-    pattern: /\bsk-[A-Za-z0-9]{20,}\b/,
-    description: 'OpenAI API Key (sk-...)',
+    // sk- 开头，支持 sk-proj-xxx / sk-xxx 两种格式
+    pattern: /\bsk-[A-Za-z0-9\-]{20,}\b/,
+    description: 'OpenAI API Key (sk-... or sk-proj-...)',
   },
   {
     name: 'anthropic-api-key',
@@ -83,6 +84,12 @@ export const BLOCK_PATTERNS: BlockPattern[] = [
     name: 'china-phone-number',
     pattern: /\b1[3-9]\d{9}\b/,
     description: 'China mobile phone number',
+  },
+  {
+    name: 'ssn',
+    // 美国社保号 SSN: xxx-xx-xxxx 格式
+    pattern: /\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b/,
+    description: 'US Social Security Number (SSN)',
   },
   {
     name: 'credit-card',
