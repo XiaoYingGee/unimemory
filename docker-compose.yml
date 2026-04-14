@@ -1,23 +1,51 @@
-version: '3.8'
+# UniMemory — Docker Compose (本地开发环境)
+#
+# 启动:  docker compose up -d
+# 停止:  docker compose down
+# 清理数据（谨慎）: docker compose down -v
+# 查看日志: docker compose logs -f postgres
 
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: unimemory-postgres
+    restart: unless-stopped
+
     environment:
       POSTGRES_USER: unimemory
       POSTGRES_PASSWORD: unimemory
       POSTGRES_DB: unimemory
+      # 性能调优（适合本地开发）
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"   # 只绑定 localhost，不暴露到外网
+
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./src/db/migrations:/docker-entrypoint-initdb.d
+      # 1. 数据持久化：命名卷，清楚知道要删哪个
+      - unimemory_pgdata:/var/lib/postgresql/data
+
+      # 2. 初始化脚本：容器首次启动时自动执行
+      - ./src/db/migrations:/docker-entrypoint-initdb.d:ro
+
+      # 3. PostgreSQL 配置调优（可选，开发环境用默认值也没问题）
+      # - ./docker/postgres.conf:/etc/postgresql/postgresql.conf:ro
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U unimemory"]
+      test: ["CMD-SHELL", "pg_isready -U unimemory -d unimemory"]
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
+    # 资源限制（防止开发机被吃满）
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+# 命名卷声明（显式命名，方便识别和清理）
 volumes:
-  postgres_data:
+  unimemory_pgdata:
+    name: unimemory_pgdata   # docker volume ls 能直接看到
+    driver: local
