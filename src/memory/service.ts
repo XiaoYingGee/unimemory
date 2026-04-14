@@ -1,5 +1,6 @@
 import { getDb } from '../db/connection';
 import { generateEmbedding, getEmbeddingModelName } from './embedding';
+import { checkContent } from '../security/filter';
 import {
   Memory,
   WriteMemoryRequest,
@@ -33,9 +34,28 @@ function computeDecayWeight(memoryType: string, lastAccessedAt: Date | null): nu
 
 export async function writeMemory(
   req: WriteMemoryRequest & { agent_id: string }
-): Promise<WriteMemoryResponse> {
+): Promise<WriteMemoryResponse & { sanitized?: boolean; sanitization_log?: string[] }> {
+  // 0. 敏感信息检测（最前端，早于 embedding 生成）
+  const filterResult = checkContent(req.content, {
+    scope: req.scope,
+    source_context: req.source_context,
+  });
+
+  if (filterResult.blocked) {
+    throw Object.assign(
+      new Error(filterResult.reason),
+      {
+        code: 'SENSITIVE_CONTENT_BLOCKED',
+        blocked_patterns: filterResult.blocked_patterns,
+        suggestion: filterResult.suggestion,
+      }
+    );
+  }
+
+  // 使用脱敏后的内容继续处理
+  const sanitizedContent = filterResult.content;
   const db = await getDb();
-  const embedding = await generateEmbedding(req.content);
+  const embedding = await generateEmbedding(sanitizedContent);
 
   // 1. 冲突检测（写入前检查）
   const conflicts = await detectConflicts(
@@ -58,7 +78,7 @@ export async function writeMemory(
       $10, $11, $12, $13, $14
     ) RETURNING id`,
     [
-      req.content,
+      sanitizedContent,
       JSON.stringify(embedding),
       req.scope,
       req.project_id ?? null,
@@ -91,6 +111,8 @@ export async function writeMemory(
     memory_id: memoryId,
     status: 'created',
     conflicts_detected: conflicts,
+    sanitized: filterResult.sanitized,
+    sanitization_log: filterResult.sanitization_log,
   };
 }
 
