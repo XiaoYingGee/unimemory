@@ -212,10 +212,8 @@ export async function searchMemories(
     );
   }
 
-  // 检测返回结果中的冲突对
-  const conflictPairs = req.include_archived !== false
-    ? detectConflictsInResults(result.rows)
-    : [];
+  // 检测返回结果中的冲突对（始终运行，不管 include_archived 参数）
+  const conflictPairs = detectConflictsInResults(result.rows);
 
   return {
     memories: result.rows,
