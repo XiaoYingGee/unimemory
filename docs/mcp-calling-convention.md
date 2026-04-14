@@ -126,10 +126,11 @@ UniMemory MCP Server 提供以下工具：
 ```json
 {
   "query": "string (必填) — 查询描述，用自然语言描述你想找什么",
-  "scope_filter": "global | project | agent | all (可选，默认 all)",
+  "scope_filter": "MemoryScope[] (可选，如 ['global','project']，默认包含所有)",
   "project_id": "string (scope_filter=project 时填写)",
   "top_k": "int (可选，默认 5，最大 20)",
-  "min_confidence": "float (可选，默认 0.3)",
+  "min_similarity": "float (可选，默认 0.7，向量检索相似度阈值)",
+  "min_confidence": "float (可选，默认 0.3，记忆质量阈值，过滤低置信度记忆)",
   "include_conflicts": "boolean (可选，默认 true)"
 }
 ```
