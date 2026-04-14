@@ -1,0 +1,37 @@
+{
+  "name": "unimemory",
+  "version": "0.1.0",
+  "description": "Universal memory layer for AI coding tools",
+  "main": "dist/server/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/server/index.ts",
+    "start": "node dist/server/index.js",
+    "test": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "db:migrate": "node scripts/migrate.js",
+    "db:reset": "node scripts/reset.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "openai": "^4.0.0",
+    "pg": "^8.11.0",
+    "pgvector": "^0.2.0",
+    "express": "^4.18.0",
+    "zod": "^3.22.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.10.0",
+    "@types/express": "^4.17.0",
+    "typescript": "^5.3.0",
+    "tsx": "^4.0.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
