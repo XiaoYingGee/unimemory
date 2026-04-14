@@ -151,10 +151,11 @@ export async function searchMemories(
   const queryEmbedding = await generateEmbedding(req.query);
   const topK = req.top_k ?? 5;
   const minSimilarity = req.min_similarity ?? 0.7;
+  const minConfidence = req.min_confidence ?? 0.0; // 过滤低质量记忆（雪琪 review 补充）
 
   // scope 过滤：始终包含 global，按需包含 project
   const scopeCondition = req.project_id
-    ? `AND (scope = 'global' OR (scope = 'project' AND project_id = $4))`
+    ? `AND (scope = 'global' OR (scope = 'project' AND project_id = $5))`
     : `AND scope = 'global'`;
 
   const query = `
@@ -166,6 +167,7 @@ export async function searchMemories(
       agent_id != 'private'
       AND archived_at IS NULL
       AND status IN ('active', 'disputed')
+      AND confidence >= $4
       AND 1 - (embedding <=> $1::vector) > $2
       ${scopeCondition}
     ORDER BY
@@ -193,6 +195,7 @@ export async function searchMemories(
     JSON.stringify(queryEmbedding),
     minSimilarity,
     topK,
+    minConfidence,
     ...(req.project_id ? [req.project_id] : []),
   ];
 
