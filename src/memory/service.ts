@@ -9,8 +9,27 @@ import {
   ConflictDetected,
 } from './types';
 
-// 冲突检测阈值（参考 Mnemos + 金瓶儿的建议：P0 用 0.80 宁可误报）
+// 冲突检测阈值（参考 Mnemos: ingestion-time detection with cosine similarity）
+// 金瓶儿建议 P0 用 0.80 宁可误报，Mnemos 原版用 0.85，取保守值
 const CONFLICT_THRESHOLD = 0.80;
+
+// MemoryBank (AAAI 2024) Ebbinghaus 遗忘曲线公式：
+// strength(t) = importance × exp(-decay_rate × elapsed_days)
+// decay_rate 参考 MemoryBank: preference/decision = 0.01（慢衰减），fact/context = 0.1，temp = 1.0
+const DECAY_RATES: Record<string, number> = {
+  preference: 0.01,  // 免疫衰减（几乎不衰减）
+  decision:   0.01,  // 免疫衰减
+  fact:       0.05,  // 慢衰减
+  context:    0.15,  // 正常衰减
+  temp:       1.0,   // 快速衰减
+};
+
+function computeDecayWeight(memoryType: string, lastAccessedAt: Date | null): number {
+  if (!lastAccessedAt) return 1.0; // 从未被访问，不衰减
+  const elapsedDays = (Date.now() - lastAccessedAt.getTime()) / (1000 * 86400);
+  const rate = DECAY_RATES[memoryType] ?? 0.1;
+  return Math.exp(-rate * elapsedDays);
+}
 
 export async function writeMemory(
   req: WriteMemoryRequest & { agent_id: string }
@@ -150,10 +169,21 @@ export async function searchMemories(
       AND 1 - (embedding <=> $1::vector) > $2
       ${scopeCondition}
     ORDER BY
-      -- 衰减排序：重要性 × 时间衰减 × 相似度
+      -- MemoryBank Ebbinghaus 衰减排序：importance × exp(-decay × days) × similarity
+      -- decay_rate 按 memory_type 分级：preference/decision=0.01, fact=0.05, context=0.15, temp=1.0
       (
         importance_score *
-        EXP(-0.1 * EXTRACT(EPOCH FROM (NOW() - last_accessed_at)) / 86400.0) *
+        EXP(
+          -CASE memory_type
+            WHEN 'preference' THEN 0.01
+            WHEN 'decision'   THEN 0.01
+            WHEN 'fact'       THEN 0.05
+            WHEN 'context'    THEN 0.15
+            WHEN 'temp'       THEN 1.0
+            ELSE 0.1
+          END
+          * COALESCE(EXTRACT(EPOCH FROM (NOW() - last_accessed_at)) / 86400.0, 0)
+        ) *
         (1 - (embedding <=> $1::vector))
       ) DESC
     LIMIT $3
