@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "unimemory": {
+      "command": "node",
+      "args": ["/Users/wuyin/workspace/unimemory/dist/mcp/server.js"],
+      "env": {
+        "DATABASE_URL": "postgresql://unimemory:unimemory@localhost:5432/unimemory",
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+      }
+    }
+  }
+}
