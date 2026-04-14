@@ -13,7 +13,10 @@ function getOpenAI(): OpenAI {
         'Add it to .env or pass via environment variable.'
       );
     }
-    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      baseURL: process.env.OPENAI_BASE_URL,  // 支持自定义 endpoint（如 copilot-gateway）
+    });
   }
   return _openai;
 }
@@ -21,8 +24,8 @@ function getOpenAI(): OpenAI {
 export async function generateEmbedding(text: string): Promise<number[]> {
   const response = await getOpenAI().embeddings.create({
     model: EMBEDDING_MODEL,
-    input: text,
-    dimensions: EMBEDDING_DIMENSIONS,
+    input: [text],  // copilot-gateway 要求数组格式
+    encoding_format: 'float',  // copilot-gateway 不支持 base64（SDK 默认）
   });
   return response.data[0].embedding;
 }
