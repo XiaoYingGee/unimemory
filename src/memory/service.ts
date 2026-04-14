@@ -1,5 +1,5 @@
 import { getDb } from '../db/connection';
-import { generateEmbedding } from './embedding';
+import { generateEmbedding, getEmbeddingModelName } from './embedding';
 import {
   Memory,
   WriteMemoryRequest,
@@ -71,7 +71,7 @@ export async function writeMemory(
       conflicts.length > 0 ? 'disputed' : 'active',
       conflicts.length > 0 ? conflicts[0].conflict_id : null,
       req.source_context ?? null,
-      'text-embedding-3-small',
+      getEmbeddingModelName(),
     ]
   );
 

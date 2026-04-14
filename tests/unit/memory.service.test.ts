@@ -10,6 +10,7 @@ vi.mock('../../src/db/connection', () => ({
 
 vi.mock('../../src/memory/embedding', () => ({
   generateEmbedding: vi.fn(() => Promise.resolve(new Array(1536).fill(0.1))),
+  getEmbeddingModelName: vi.fn(() => 'mock/test-embedding'),
 }));
 
 import { writeMemory, searchMemories } from '../../src/memory/service';
