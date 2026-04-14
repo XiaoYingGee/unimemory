@@ -67,7 +67,8 @@ export async function classifyConflict(
 ): Promise<ClassifyConflictResult> {
   try {
     const response = await llmClient.complete(CLASSIFY_PROMPT(input));
-    const parsed = JSON.parse(response.trim());
+    const cleaned = response.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '');
+    const parsed = JSON.parse(cleaned);
 
     const validTypes = ['supersede', 'contradiction', 'refinement'];
     if (!validTypes.includes(parsed.conflict_type)) {

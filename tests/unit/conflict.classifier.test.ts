@@ -76,6 +76,17 @@ describe('TC-B1-03: refinement classification', () => {
 
 // ── TC-B1-04: LLM 失败降级为 potential ──────────────────────────────────
 describe('TC-B1-04: fallback to potential on LLM failure', () => {
+  it('should handle markdown code block wrapping from LLM', async () => {
+    const llm = makeMockLLM('```json\n' + JSON.stringify({
+      conflict_type: 'supersede',
+      confidence: 0.9,
+      reasoning: 'LLM wrapped response in code block.',
+    }) + '\n```');
+
+    const result = await classifyConflict(baseInput, llm);
+    expect(result.conflict_type).toBe('supersede');
+  });
+
   it('should return potential when LLM throws', async () => {
     const llm: LLMClient = {
       complete: vi.fn().mockRejectedValue(new Error('API timeout')),
