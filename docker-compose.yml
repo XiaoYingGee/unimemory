@@ -1,9 +1,10 @@
-version: '3.8'
+version: '3.9'
 
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: unimemory-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: unimemory
       POSTGRES_PASSWORD: unimemory
@@ -11,8 +12,8 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./src/db/migrations:/docker-entrypoint-initdb.d
+      - unimemory-pgdata:/var/lib/postgresql/data
+      - ./src/db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U unimemory"]
       interval: 5s
@@ -20,4 +21,8 @@ services:
       retries: 5
 
 volumes:
-  postgres_data:
+  unimemory-pgdata:
+    name: unimemory-pgdata
+    labels:
+      project: unimemory
+      env: dev
