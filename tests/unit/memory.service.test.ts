@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock 数据库和 embedding，不依赖真实 PostgreSQL
+// Mock pool and embedding
+const mockPool = {
+  query: vi.fn(),
+};
+
 vi.mock('../../src/db/connection', () => ({
-  getDb: vi.fn(() => ({
-    query: vi.fn(),
-  })),
+  getDb: vi.fn(() => Promise.resolve(mockPool)),
 }));
 
 vi.mock('../../src/memory/embedding', () => ({
@@ -16,15 +18,14 @@ import { getDb } from '../../src/db/connection';
 
 describe('Memory Service', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Reset mock pool query
+    mockPool.query.mockReset();
   });
 
   // ============ TC-CRUD 正常流程 ============
   describe('CRUD - Write Memory', () => {
     it('TC-CRUD-01: should write a memory and return memory_id', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })           // conflict detection: no conflicts
         .mockResolvedValueOnce({ rows: [{ id: 'test-uuid-1234' }] }) // insert
       ;
@@ -46,7 +47,6 @@ describe('Memory Service', () => {
     });
 
     it('TC-CRUD-02: should read most relevant memory with decay-weighted scores', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
       const mockMemories = [
         {
           id: 'mem-1',
@@ -74,10 +74,9 @@ describe('Memory Service', () => {
         },
       ];
 
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: mockMemories })  // search
-        .mockResolvedValueOnce({ rows: [] })             // update access_count
+        .mockResolvedValueOnce({ rows: [] })  // update access_count
       ;
 
       const result = await searchMemories({
@@ -91,9 +90,7 @@ describe('Memory Service', () => {
     });
 
     it('TC-CRUD-03: should update access_count after read', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [{ id: 'mem-1', access_count: 0 }] }) // search
         .mockResolvedValueOnce({ rows: [] })  // update access_count
       ;
@@ -104,7 +101,7 @@ describe('Memory Service', () => {
       });
 
       // Verify update was called
-      expect(mockDb.query).toHaveBeenCalledWith(
+      expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining('access_count = access_count + 1'),
         expect.any(Array)
       );
@@ -114,11 +111,8 @@ describe('Memory Service', () => {
   // ============ TC-SCOPE Scope 隔离 ============
   describe('Scope Isolation', () => {
     it('TC-SCOPE-01: project level memory should NOT leak to other projects', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-      
       // Write to project:asset-mgmt
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })  // conflict detection
         .mockResolvedValueOnce({ rows: [{ id: 'mem-project-1' }] })  // insert
       ;
@@ -132,10 +126,8 @@ describe('Memory Service', () => {
       });
 
       // Now search from different project should NOT find it
-      // @ts-ignore
-      mockDb.query.mockReset();
-      // @ts-ignore
-      mockDb.query
+      mockPool.query.mockReset();
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })  // search in project:unimemory returns empty
         .mockResolvedValueOnce({ rows: [] })  // update access (no results)
       ;
@@ -150,7 +142,6 @@ describe('Memory Service', () => {
     });
 
     it('TC-SCOPE-02: global memory should be accessible from all projects', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
       const globalMemory = {
         id: 'global-mem-1',
         content: '主人不喜欢冗长文档',
@@ -176,8 +167,7 @@ describe('Memory Service', () => {
         project_id: null,
       };
 
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [globalMemory] })  // search in project:unimemory
         .mockResolvedValueOnce({ rows: [] })  // update access
       ;
@@ -193,11 +183,8 @@ describe('Memory Service', () => {
     });
 
     it('TC-SCOPE-03: private memory should only be readable by writer', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-
       // Agent jinpinger writes private memory
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })  // conflict detection
         .mockResolvedValueOnce({ rows: [{ id: 'private-mem-1' }] })  // insert
       ;
@@ -211,10 +198,8 @@ describe('Memory Service', () => {
       });
 
       // Agent biyao should NOT find it
-      // @ts-ignore
-      mockDb.query.mockReset();
-      // @ts-ignore
-      mockDb.query
+      mockPool.query.mockReset();
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })  // search filtered out private
         .mockResolvedValueOnce({ rows: [] })
       ;
@@ -231,11 +216,8 @@ describe('Memory Service', () => {
   // ============ TC-CONFLICT 冲突检测 ============
   describe('Conflict Detection', () => {
     it('TC-CONFLICT-01: high similarity + same entity_tag should trigger conflict', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-
       // First write
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })  // no prior conflicts
         .mockResolvedValueOnce({ rows: [{ id: 'mem-1' }] })  // insert
       ;
@@ -251,10 +233,8 @@ describe('Memory Service', () => {
       });
 
       // Second write with high similarity
-      // @ts-ignore
-      mockDb.query.mockReset();
-      // @ts-ignore
-      mockDb.query
+      mockPool.query.mockReset();
+      mockPool.query
         .mockResolvedValueOnce({
           rows: [{
             id: 'mem-1',
@@ -283,11 +263,8 @@ describe('Memory Service', () => {
     });
 
     it('TC-CONFLICT-02: different scope memories should NOT trigger conflict', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-
       // Write to project-a
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })  // no conflicts (different scope)
         .mockResolvedValueOnce({ rows: [{ id: 'mem-a' }] })  // insert
       ;
@@ -306,8 +283,6 @@ describe('Memory Service', () => {
     });
 
     it('TC-CONFLICT-03: search should return conflict pairs', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-      
       const disputedMemories = [
         {
           id: 'mem-1',
@@ -359,8 +334,7 @@ describe('Memory Service', () => {
         },
       ];
 
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: disputedMemories })  // search
         .mockResolvedValueOnce({ rows: [] })  // update access
       ;
@@ -378,10 +352,7 @@ describe('Memory Service', () => {
     });
 
     it('TC-CONFLICT-04: conflicting memories should NOT be auto-deleted', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({
           rows: [{
             id: 'mem-existing',
@@ -410,12 +381,9 @@ describe('Memory Service', () => {
   // ============ TC-HALLUC 幻觉写入防护 ============
   describe('Hallucination Protection', () => {
     it('TC-HALLUC-01: inferred + confidence < 0.70 should be rejected', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-
       // Service层应该在插入前校验，但当前实现把这个委托给MCP层
       // 这里模拟MCP层会拒绝这个请求
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })  // conflict detection passes
         .mockResolvedValueOnce({ rows: [{ id: 'mem-low-confidence' }] })  // 模拟被允许写入
       ;
@@ -435,10 +403,7 @@ describe('Memory Service', () => {
     });
 
     it('TC-HALLUC-02: explicit source_type should write normally', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })  // conflict
         .mockResolvedValueOnce({ rows: [{ id: 'mem-explicit' }] })  // insert success
       ;
@@ -466,12 +431,9 @@ describe('Memory Service', () => {
   // ============ TC-SEC 安全测试 ============
   describe('Security', () => {
     it('TC-SEC-01: SQL injection attempts should be safely stored', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-
       const maliciousContent = "'; DROP TABLE memories; --";
 
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })  // conflict
         .mockResolvedValueOnce({ rows: [{ id: 'mem-sec-1' }] })  // insert with parameterized query
       ;
@@ -495,13 +457,11 @@ describe('Memory Service', () => {
     });
 
     it('TC-SEC-03: five agents with private memories should NOT leak to each other', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
       const agents = ['xiaobai', 'xueqi', 'biyao', 'tianlingr', 'jinpinger'];
 
       // Each agent writes private memory
       for (const agent of agents) {
-        // @ts-ignore
-        mockDb.query
+        mockPool.query
           .mockResolvedValueOnce({ rows: [] })  // conflict
           .mockResolvedValueOnce({ rows: [{ id: `private-${agent}` }] })  // insert
         ;
@@ -516,10 +476,8 @@ describe('Memory Service', () => {
 
       // Each agent should NOT find others' private memories
       for (const readerAgent of agents) {
-        // @ts-ignore
-        mockDb.query.mockReset();
-        // @ts-ignore
-        mockDb.query
+        mockPool.query.mockReset();
+        mockPool.query
           .mockResolvedValueOnce({ rows: [] })  // no results (scope filtered)
           .mockResolvedValueOnce({ rows: [] })
         ;
@@ -537,10 +495,7 @@ describe('Memory Service', () => {
   // ============ TC-PERF 性能基准 ============
   describe('Performance Baseline', () => {
     it('TC-PERF-01: single write should complete in < 2 seconds', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [] })  // conflict
         .mockResolvedValueOnce({ rows: [{ id: 'perf-test-1' }] })  // insert
       ;
@@ -558,10 +513,7 @@ describe('Memory Service', () => {
     });
 
     it('TC-PERF-02: single search should complete in < 500ms', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({ rows: [{ id: 'perf-mem-1' }] })  // search
         .mockResolvedValueOnce({ rows: [] })  // update access
       ;
@@ -580,10 +532,7 @@ describe('Memory Service', () => {
   // ============ 冲突解决 ============
   describe('Conflict Resolution', () => {
     it('should mark loser as superseded and winner as active', async () => {
-      const mockDb = await getDb() as ReturnType<typeof vi.fn>;
-
-      // @ts-ignore
-      mockDb.query
+      mockPool.query
         .mockResolvedValueOnce({
           rows: [
             { id: 'winner', content: 'correct' },
