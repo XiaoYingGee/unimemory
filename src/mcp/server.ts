@@ -2,6 +2,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { writeMemory, searchMemories, resolveConflict } from '../memory/service';
+import { mergeMemories, getMergeSources } from '../memory/merge-compress';
+import { warmUpMemory, getColdStorageStats } from '../memory/hot-cold';
 
 const server = new McpServer({
   name: 'unimemory',
@@ -97,6 +99,64 @@ server.tool(
     return {
       content: [{ type: 'text', text: JSON.stringify(result) }],
     };
+  }
+);
+
+// ── memory_merge ─────────────────────────────────────────────────────────
+server.tool(
+  'memory_merge',
+  'Merge 2-20 related memories into one condensed memory using LLM. Originals are archived (recoverable). ONLY manually triggered — never auto-called.',
+  {
+    memory_ids: z.array(z.string().uuid()).min(2).max(20).describe('IDs of memories to merge'),
+    agent_id: z.string().optional(),
+    project_id: z.string().optional(),
+    scope: z.enum(['global', 'project', 'agent']).optional(),
+    triggered_by: z.string().optional().describe('Who triggered this merge'),
+  },
+  async (params) => {
+    try {
+      const result = await mergeMemories(params);
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: (err as Error).message }) }], isError: true };
+    }
+  }
+);
+
+// ── memory_merge_trace ────────────────────────────────────────────────────
+server.tool(
+  'memory_merge_trace',
+  'Trace original sources of a merged memory for audit or rollback.',
+  { merged_memory_id: z.string().uuid() },
+  async (params) => {
+    try {
+      const result = await getMergeSources(params.merged_memory_id);
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: (err as Error).message }) }], isError: true };
+    }
+  }
+);
+
+// ── memory_warm_up ────────────────────────────────────────────────────────
+server.tool(
+  'memory_warm_up',
+  'Re-activate a cold (archived) memory so it participates in real-time search again.',
+  { memory_id: z.string().uuid() },
+  async (params) => {
+    const warmedUp = await warmUpMemory(params.memory_id);
+    return { content: [{ type: 'text', text: JSON.stringify({ warmed_up: warmedUp, memory_id: params.memory_id }) }] };
+  }
+);
+
+// ── memory_cold_stats ─────────────────────────────────────────────────────
+server.tool(
+  'memory_cold_stats',
+  'Get hot/cold storage statistics for monitoring.',
+  {},
+  async () => {
+    const stats = await getColdStorageStats();
+    return { content: [{ type: 'text', text: JSON.stringify(stats) }] };
   }
 );
 
