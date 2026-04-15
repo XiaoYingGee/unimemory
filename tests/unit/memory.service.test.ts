@@ -8,6 +8,11 @@ vi.mock('../../src/db/connection', () => ({
   getDb: vi.fn(() => Promise.resolve(mockDb)),
 }));
 
+vi.mock('../../src/memory/embedding/index', () => ({
+  generateEmbedding: vi.fn(() => Promise.resolve(new Array(1536).fill(0.1))),
+  getEmbeddingModelName: vi.fn(() => 'mock/test-embedding'),
+}));
+
 vi.mock('../../src/memory/embedding', () => ({
   generateEmbedding: vi.fn(() => Promise.resolve(new Array(1536).fill(0.1))),
   getEmbeddingModelName: vi.fn(() => 'mock/test-embedding'),
@@ -241,7 +246,8 @@ describe('searchMemories — scope isolation', () => {
     expect(result.conflicts![0]).toHaveProperty('memory_a');
     expect(result.conflicts![0]).toHaveProperty('memory_b');
     expect(result.conflicts![0]).toHaveProperty('conflict_score');
-    expect(result.conflicts![0].memory_a.memory_id).toBe('mem-a');
-    expect(result.conflicts![0].memory_b.memory_id).toBe('mem-b');
+    // memory_a/memory_b are content strings in ConflictPair
+    expect(typeof result.conflicts![0].memory_a).toBe('string');
+    expect(typeof result.conflicts![0].memory_b).toBe('string');
   });
 });

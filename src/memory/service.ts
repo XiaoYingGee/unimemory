@@ -1,5 +1,5 @@
 import { getDb } from '../db/connection';
-import { generateEmbedding, getEmbeddingModelName } from './embedding';
+import { generateEmbedding, getEmbeddingModelName } from './embedding/index';
 import { checkContent } from '../security/filter';
 import { classifyConflict } from '../conflict/classifier';
 import { getLLMClient } from '../conflict/llm-client';
@@ -10,6 +10,7 @@ import {
   SearchMemoryRequest,
   SearchMemoryResponse,
   ConflictDetected,
+  ConflictPair,
 } from './types';
 
 // 冲突检测阈值（参考 Mnemos: ingestion-time detection with cosine similarity）
@@ -248,11 +249,7 @@ export async function searchMemories(
   };
 }
 
-function detectConflictsInResults(memories: Memory[]): {
-  memory_a: { memory_id: string; content: string };
-  memory_b: { memory_id: string; content: string };
-  conflict_score: number;
-}[] {
+function detectConflictsInResults(memories: Memory[]): ConflictPair[] {
   // 返回已标记为 disputed 的记忆对
   const disputed = memories.filter((m) => m.status === 'disputed' && m.conflict_group_id);
   const groups = new Map<string, Memory[]>();
@@ -263,17 +260,13 @@ function detectConflictsInResults(memories: Memory[]): {
     groups.get(gid)!.push(m);
   }
 
-  const pairs: {
-    memory_a: { memory_id: string; content: string };
-    memory_b: { memory_id: string; content: string };
-    conflict_score: number;
-  }[] = [];
+  const pairs: ConflictPair[] = [];
 
   for (const group of groups.values()) {
     if (group.length >= 2) {
       pairs.push({
-        memory_a: { memory_id: group[0].id, content: group[0].content },
-        memory_b: { memory_id: group[1].id, content: group[1].content },
+        memory_a: group[0].content,
+        memory_b: group[1].content,
         conflict_score: 0.9, // P0 先用固定值，P1 再精确计算
       });
     }

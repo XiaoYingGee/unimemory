@@ -18,8 +18,8 @@
  */
 
 import { getDb } from '../db/connection';
-import { generateEmbedding, getEmbeddingModelName } from '../memory/embedding';
-import { LLMClient } from '../conflict/llm-client';
+import { generateEmbedding, getEmbeddingModelName } from '../memory/embedding/index';
+import { LLMClient } from '../conflict/classifier';
 
 export interface MergeRequest {
   memory_ids: string[];           // 要合并的记忆 ID（2~20）
