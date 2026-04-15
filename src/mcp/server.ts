@@ -1,5 +1,5 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
 import { z } from 'zod';
 import { writeMemory, searchMemories, resolveConflict } from '../memory/service';
 import { mergeMemories, getMergeSources } from '../memory/merge-compress';

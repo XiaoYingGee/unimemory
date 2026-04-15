@@ -15,7 +15,7 @@
  * 分类结果写入 memories.conflict_type 字段。
  */
 
-import { getEmbeddingProvider } from '../memory/embedding';
+import { getEmbeddingProvider } from '../memory/embedding/index';
 
 export type ConflictType = 'supersede' | 'contradiction' | 'refinement' | 'potential';
 

@@ -128,7 +128,8 @@ app.patch('/api/memories/:id', async (req, res) => {
 // ── Resolve Conflict ──────────────────────────────────────────────────────
 app.post('/api/conflicts/resolve', async (req, res) => {
   try {
-    const result = await resolveConflict(req.body);
+    const { conflict_group_id, winner_memory_id, resolution_note } = req.body;
+    const result = await resolveConflict(conflict_group_id, winner_memory_id, resolution_note);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: 'INTERNAL_ERROR', message: err.message });

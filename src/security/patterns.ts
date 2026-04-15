@@ -105,7 +105,7 @@ export const SANITIZE_PATTERNS: SanitizePattern[] = [
   {
     name: 'ip-address',
     pattern: /\b(?:\d{1,3}\.){2}(\d{1,3}\.\d{1,3})\b/g,
-    replacement: (match: string) => match.replace(/\b(?:\d{1,3}\.){2}(\d{1,3})\.(\d{1,3})\b/, '$1.x.x') as unknown as string,
+    replacement: '*.x.x',
     description: 'IP address → 192.168.x.x',
   },
   {

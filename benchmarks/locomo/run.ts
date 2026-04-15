@@ -13,10 +13,13 @@
  *   DATABASE_URL, UNIMEMORY_EMBEDDING_PROVIDER, etc. (same as main app)
  */
 
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
 import { writeMemory, searchMemories } from '../../src/memory/service';
 import { WriteMemoryRequest } from '../../src/memory/types';
 import * as fs from 'fs';
-import * as path from 'path';
 
 // ---- Types ----
 
@@ -66,7 +69,7 @@ async function ingestConversation(conv: LoCoMoConversation): Promise<void> {
   for (const [sessionId, turns] of sessions) {
     // Write each turn as a separate memory (simple ingestion strategy)
     for (const turn of turns) {
-      if (turn.text.trim().length < 10) continue; // Skip very short turns
+      if (!turn.text || turn.text.trim().length < 10) continue; // Skip empty or very short turns
 
       const req: WriteMemoryRequest = {
         content: `[Session ${sessionId}, ${turn.speaker}]: ${turn.text}`,
@@ -110,7 +113,7 @@ async function evaluateQA(
 
   // Check if retrieved memories contain the expected evidence
   // Simple heuristic: does the answer appear in any retrieved memory?
-  const answerTokens = qa.answer.toLowerCase().split(/\s+/).filter(t => t.length > 3);
+  const answerTokens = String(qa.answer ?? '').toLowerCase().split(/\s+/).filter(t => t.length > 3);
   const correct = results.memories.some(mem => {
     const content = mem.content.toLowerCase();
     // At least 50% of answer tokens should appear in the retrieved memory
@@ -130,9 +133,43 @@ async function runBenchmark(options: {
 }): Promise<BenchmarkResult[]> {
   const { dataPath, sampleSize, conversationId } = options;
 
-  let conversations: LoCoMoConversation[] = JSON.parse(
-    fs.readFileSync(dataPath, 'utf-8')
-  );
+  const rawData: any[] = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+
+  // Normalize LoCoMo format to internal format
+  let conversations: LoCoMoConversation[] = rawData.map((sample: any) => {
+    // Build turns from session_1, session_2, ... keys
+    const turns: LoCoMoTurn[] = [];
+    let turnId = 0;
+    let sessionId = 1;
+    while (sample.conversation[`session_${sessionId}`]) {
+      const session = sample.conversation[`session_${sessionId}`];
+      if (Array.isArray(session)) {
+        for (const msg of session) {
+          turns.push({
+            speaker: msg.speaker ?? (turnId % 2 === 0 ? 'human' : 'assistant'),
+            text: msg.text ?? String(msg),
+            session_id: sessionId,
+            turn_id: turnId++,
+          });
+        }
+      }
+      sessionId++;
+    }
+
+    // Normalize QA pairs — guard against non-string fields in the dataset
+    const qa_pairs: LoCoMoQA[] = (sample.qa ?? []).map((q: any) => ({
+      question: String(q.question ?? ''),
+      answer: String(q.answer ?? ''),
+      evidence_turn_ids: [],
+      category: (['single_hop', 'multi_hop', 'temporal', 'open_domain'][q.category - 1] ?? 'single_hop') as LoCoMoQA['category'],
+    }));
+
+    return {
+      conversation_id: sample.sample_id ?? sample.conversation_id ?? 'unknown',
+      turns,
+      qa_pairs,
+    };
+  });
 
   if (conversationId) {
     conversations = conversations.filter(c => c.conversation_id === conversationId);

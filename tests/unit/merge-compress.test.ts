@@ -11,6 +11,11 @@ vi.mock('../../src/db/connection', () => ({
   getDb: vi.fn(() => Promise.resolve(mockDb)),
 }));
 
+vi.mock('../../src/memory/embedding/index', () => ({
+  generateEmbedding: vi.fn(() => Promise.resolve(new Array(1536).fill(0.1))),
+  getEmbeddingModelName: vi.fn(() => 'text-embedding-3-small'),
+}));
+
 vi.mock('../../src/memory/embedding', () => ({
   generateEmbedding: vi.fn(() => Promise.resolve(new Array(1536).fill(0.1))),
   getEmbeddingModelName: vi.fn(() => 'text-embedding-3-small'),
