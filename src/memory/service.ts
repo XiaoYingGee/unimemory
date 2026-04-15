@@ -1,6 +1,8 @@
 import { getDb } from '../db/connection';
 import { generateEmbedding, getEmbeddingModelName } from './embedding';
 import { checkContent } from '../security/filter';
+import { classifyConflict } from '../conflict/classifier';
+import { getLLMClient } from '../conflict/llm-client';
 import {
   Memory,
   WriteMemoryRequest,
@@ -97,7 +99,7 @@ export async function writeMemory(
 
   const memoryId = result.rows[0].id;
 
-  // 3. 如有冲突，更新已有记忆的 conflict_group_id
+  // 3. 如有冲突，更新已有记忆的 conflict_group_id + LLM 三分类
   if (conflicts.length > 0) {
     const groupId = conflicts[0].conflict_id;
     await db.query(
@@ -105,6 +107,9 @@ export async function writeMemory(
        WHERE id = ANY($2::uuid[])`,
       [groupId, conflicts.map((c) => c.existing_memory_id)]
     );
+
+    // B1: LLM 对冲突类型进行精细分类（异步并行，不阻塞写入）
+    classifyConflictsAsync(conflicts, req.content, req.memory_type ?? 'context', memoryId, db);
   }
 
   return {
@@ -309,4 +314,40 @@ export async function resolveConflict(
     winner: { memory_id: winner.id, content: winner.content },
     archived: losers.map((l: { id: string; content: string }) => ({ memory_id: l.id, content: l.content })),
   };
+}
+
+/**
+ * B1: 异步冲突分类（不阻塞写入流程）
+ * 对每个冲突对调用 LLM，把 conflict_type 更新到 memories 表
+ */
+async function classifyConflictsAsync(
+  conflicts: ConflictDetected[],
+  newContent: string,
+  memoryType: string,
+  newMemoryId: string,
+  db: Awaited<ReturnType<typeof getDb>>
+): Promise<void> {
+  try {
+    const llm = getLLMClient();
+    for (const conflict of conflicts) {
+      const result = await classifyConflict(
+        {
+          existing_content: conflict.existing_content,
+          new_content: newContent,
+          memory_type: memoryType,
+          similarity: conflict.similarity,
+        },
+        llm
+      );
+
+      // 更新两条记忆的 conflict_type
+      await db.query(
+        `UPDATE memories SET conflict_type = $1 WHERE id = ANY($2::uuid[])`,
+        [result.conflict_type, [conflict.existing_memory_id, newMemoryId]]
+      );
+    }
+  } catch (err) {
+    // 分类失败不影响写入结果
+    console.error('[B1] classifyConflictsAsync error:', err);
+  }
 }
