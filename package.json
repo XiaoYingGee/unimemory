@@ -11,7 +11,9 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "db:migrate": "node scripts/migrate.js",
-    "db:reset": "node scripts/reset.js"
+    "db:reset": "node scripts/reset.js",
+    "benchmark:locomo": "npx ts-node benchmarks/locomo/run.ts",
+    "benchmark:locomo:download": "bash benchmarks/locomo/download.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
