@@ -24,8 +24,25 @@ export interface Memory {
   embedding_model: string;
 }
 
+export interface ColdMemory {
+  id: string;
+  content: string;
+  memory_type: string;
+  importance_score: number;
+  archived_at: string;
+  last_accessed_at: string | null;
+  access_count: number;
+}
+
 export interface MemoryListResponse {
   memories: Memory[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface ColdListResponse {
+  memories: ColdMemory[];
   total: number;
   page: number;
   limit: number;
@@ -46,6 +63,17 @@ export interface Stats {
   global_count: string;
   project_count: string;
   agent_count: string;
+  hotCount: number;
+  coldCount: number;
+  coldRatio: number;
+}
+
+export interface ProviderConfig {
+  provider: string;
+  model: string;
+  baseUrl: string | null;
+  coldAfterDays: number;
+  importanceThreshold: number;
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -97,4 +125,23 @@ export const api = {
     apiFetch('/api/conflicts/resolve', { method: 'POST', body: JSON.stringify(body) }),
 
   getStats: () => apiFetch<Stats>('/api/stats'),
+
+  // L4: Cold/Archive
+  listArchive: (params: Record<string, string | number | undefined> = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== '')
+        .map(([k, v]) => [k, String(v)])
+    ).toString();
+    return apiFetch<ColdListResponse>(`/api/archive${qs ? `?${qs}` : ''}`);
+  },
+
+  warmUp: (id: string) =>
+    apiFetch<{ warmed: boolean; memory_id: string }>(`/api/archive/${id}/warmup`, { method: 'POST' }),
+
+  runArchive: () =>
+    apiFetch<{ archived: number; warmedUp: number }>('/api/archive/run', { method: 'POST' }),
+
+  // L5: Provider config
+  getProvider: () => apiFetch<ProviderConfig>('/api/provider'),
 };
