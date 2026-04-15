@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { api, Memory, ConflictGroup, Stats } from '@/lib/api';
 import { MemoryCard } from '@/components/MemoryCard';
 import { ConflictPanel } from '@/components/ConflictPanel';
+import ArchivePage from '@/components/ArchivePage';
+import ProviderPage from '@/components/ProviderPage';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import {
@@ -84,6 +86,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50">
+      {/* Header */}
       <header className="bg-white border-b px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
@@ -94,7 +97,12 @@ export default function Home() {
             <div className="flex gap-4 text-sm">
               <span className="text-green-700">活跃 <strong>{stats.active}</strong></span>
               <span className="text-yellow-700">冲突 <strong>{stats.disputed}</strong></span>
-              <span className="text-gray-500">归档 <strong>{stats.archived}</strong></span>
+              <span className="text-gray-500">
+                📦 热 <strong>{stats.hotCount}</strong> / 冷 <strong>{stats.coldCount}</strong>
+                {stats.coldRatio > 0 && (
+                  <span className="ml-1 text-orange-600">({Math.round(stats.coldRatio * 100)}% 归档)</span>
+                )}
+              </span>
             </div>
           )}
         </div>
@@ -115,8 +123,18 @@ export default function Home() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="archive">
+              归档管理
+              {stats && stats.coldCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">
+                  {stats.coldCount}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="provider">Provider 配置</TabsTrigger>
           </TabsList>
 
+          {/* ── 记忆列表 ── */}
           <TabsContent value="memories">
             <div className="flex flex-wrap gap-3 mb-4">
               <div className="flex gap-2 flex-1 min-w-[240px]">
@@ -209,11 +227,22 @@ export default function Home() {
             )}
           </TabsContent>
 
+          {/* ── 冲突仲裁 ── */}
           <TabsContent value="conflicts">
             <ConflictPanel
               conflicts={conflicts}
               onResolved={() => { loadConflicts(); loadMemories(); loadStats(); }}
             />
+          </TabsContent>
+
+          {/* ── 归档管理 (L4) ── */}
+          <TabsContent value="archive">
+            <ArchivePage />
+          </TabsContent>
+
+          {/* ── Provider 配置 (L5) ── */}
+          <TabsContent value="provider">
+            <ProviderPage />
           </TabsContent>
         </Tabs>
       </div>
