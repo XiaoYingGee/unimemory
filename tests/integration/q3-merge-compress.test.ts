@@ -60,22 +60,12 @@ describe('Q3: Merge & Compress', () => {
       expect(merged_memory.merge_sources).toContain(m2.id);
     });
 
-    it('TC-Q3-MERGE-03: Transaction rollback on LLM failure', async () => {
-      // TODO: Mock LLM failure and verify rollback
-      expect(true).toBe(true);
-    });
+    it.todo('TC-Q3-MERGE-03: Transaction rollback on LLM failure');
   });
 
   describe('LLM compression', () => {
-    it('TC-Q3-COMPRESS-01: LLM generates coherent summary', async () => {
-      // TODO: Verify LLM compression output quality
-      expect(true).toBe(true);
-    });
-
-    it('TC-Q3-COMPRESS-02: Fallback to text concatenation when LLM fails', async () => {
-      // TODO: Mock LLM failure and verify fallback
-      expect(true).toBe(true);
-    });
+    it.todo('TC-Q3-COMPRESS-01: LLM generates coherent summary');
+    it.todo('TC-Q3-COMPRESS-02: Fallback to text concatenation when LLM fails');
   });
 
   describe('Merge traceability', () => {
@@ -94,9 +84,6 @@ describe('Q3: Merge & Compress', () => {
       expect(archived.length).toBeGreaterThan(0);
     });
 
-    it('TC-Q3-TRACE-02: Get merge sources returns all ancestors', async () => {
-      // TODO: Verify merge_sources genealogy
-      expect(true).toBe(true);
-    });
+    it.todo('TC-Q3-TRACE-02: Get merge sources returns all ancestors');
   });
 });

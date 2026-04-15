@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getDb } from '../../src/db/connection';
 import { writeMemory, searchMemory } from '../../src/memory/service';
 import { embeddingService } from '../../src/memory/embedding/service';
@@ -10,6 +10,13 @@ describe('Q4: Provider Switching', () => {
   });
 
   describe('Provider switching', () => {
+    afterEach(() => {
+      delete process.env.EMBEDDING_PROVIDER;
+      delete process.env.OLLAMA_BASE_URL;
+      delete process.env.EMBEDDING_ENDPOINT;
+      delete process.env.OPENAI_API_KEY;
+    });
+
     it('TC-Q4-PROVIDER-01: OpenAI embedding generation', async () => {
       process.env.EMBEDDING_PROVIDER = 'openai';
       
@@ -37,7 +44,6 @@ describe('Q4: Provider Switching', () => {
         source_context: 'test'
       });
 
-      // If Ollama is down, should still create memory (graceful degradation)
       expect(memory.id).toBeDefined();
     });
 
@@ -58,6 +64,10 @@ describe('Q4: Provider Switching', () => {
   });
 
   describe('Search consistency across providers', () => {
+    afterEach(() => {
+      delete process.env.EMBEDDING_PROVIDER;
+    });
+
     it('TC-Q4-SEARCH-01: Search works regardless of provider', async () => {
       const providers = ['openai', 'ollama', 'compatible'];
       
@@ -77,13 +87,15 @@ describe('Q4: Provider Switching', () => {
       }
     });
 
-    it('TC-Q4-SEARCH-02: Cross-provider search returns consistent results', async () => {
-      // TODO: Write with provider A, search with provider B
-      expect(true).toBe(true);
-    });
+    it.todo('TC-Q4-SEARCH-02: Cross-provider search returns consistent results');
   });
 
   describe('Provider initialization', () => {
+    afterEach(() => {
+      delete process.env.EMBEDDING_PROVIDER;
+      delete process.env.OPENAI_API_KEY;
+    });
+
     it('TC-Q4-INIT-01: Provider initializes on first use', async () => {
       const provider = await embeddingService.getProvider('openai');
       expect(provider).toBeDefined();
@@ -101,7 +113,6 @@ describe('Q4: Provider Switching', () => {
       process.env.EMBEDDING_PROVIDER = 'openai';
       delete process.env.OPENAI_API_KEY;
       
-      // Should either use default or gracefully degrade
       const memory = await writeMemory({
         agent_id: 'test-agent',
         type: 'fact',
@@ -115,6 +126,10 @@ describe('Q4: Provider Switching', () => {
   });
 
   describe('Performance across providers', () => {
+    afterEach(() => {
+      delete process.env.EMBEDDING_PROVIDER;
+    });
+
     it('TC-Q4-PERF-01: OpenAI embedding latency < 500ms', async () => {
       const start = Date.now();
       await writeMemory({
@@ -129,9 +144,6 @@ describe('Q4: Provider Switching', () => {
       expect(duration).toBeLessThan(500);
     });
 
-    it('TC-Q4-PERF-02: Ollama embedding latency baseline', async () => {
-      // TODO: Measure Ollama performance
-      expect(true).toBe(true);
-    });
+    it.todo('TC-Q4-PERF-02: Ollama embedding latency baseline');
   });
 });
