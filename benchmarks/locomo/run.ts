@@ -34,7 +34,7 @@ interface LoCoMoQA {
   question: string;
   answer: string;
   evidence_turn_ids: number[];
-  category: 'single_hop' | 'multi_hop' | 'temporal' | 'open_domain';
+  category: 'single_hop' | 'multi_hop' | 'temporal' | 'open_domain' | 'adversarial';
 }
 
 interface LoCoMoConversation {
@@ -254,7 +254,7 @@ async function runBenchmark(options: {
       question: String(q.question ?? ''),
       answer: String(q.answer ?? ''),
       evidence_turn_ids: [],
-      category: (['single_hop', 'multi_hop', 'temporal', 'open_domain'][q.category - 1] ?? 'single_hop') as LoCoMoQA['category'],
+      category: (['single_hop', 'multi_hop', 'temporal', 'open_domain', 'adversarial'][q.category - 1] ?? 'adversarial') as LoCoMoQA['category'],
     }));
 
     return {
