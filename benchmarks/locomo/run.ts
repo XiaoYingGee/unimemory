@@ -102,14 +102,20 @@ async function evaluateQA(
 ): Promise<{ correct: boolean; retrievalMs: number }> {
   const start = Date.now();
 
-  const results = await searchMemories({
-    query: qa.question,
-    agent_id: 'locomo-benchmark',
-    scope_filter: ['project'],
-    project_id: `locomo-${conversationId}`,
-    top_k: topK,
-    min_similarity: 0.5,  // Lower threshold for benchmark to test retrieval range
-  });
+  let results: Awaited<ReturnType<typeof searchMemories>>;
+  try {
+    results = await searchMemories({
+      query: qa.question,
+      agent_id: 'locomo-benchmark',
+      scope_filter: ['project'],
+      project_id: `locomo-${conversationId}`,
+      top_k: topK,
+      min_similarity: 0.5,
+    });
+  } catch (err) {
+    console.warn(`  [evaluateQA] searchMemories failed, skipping QA: ${(err as Error).message}`);
+    return { correct: false, retrievalMs: Date.now() - start };
+  }
 
   const retrievalMs = Date.now() - start;
 
