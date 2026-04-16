@@ -54,6 +54,8 @@ export interface WriteMemoryRequest {
   importance_score?: number;
   entity_tags?: string[];
   source_context?: string;
+  /** Skip conflict detection (e.g. for batch benchmark ingestion to avoid LLM timeouts) */
+  skipConflictCheck?: boolean;
 }
 
 export interface WriteMemoryResponse {

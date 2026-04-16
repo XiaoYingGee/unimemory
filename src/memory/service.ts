@@ -36,7 +36,7 @@ function computeDecayWeight(memoryType: string, lastAccessedAt: Date | null): nu
 }
 
 export async function writeMemory(
-  req: WriteMemoryRequest & { agent_id: string }
+  req: WriteMemoryRequest & { agent_id: string; skipConflictCheck?: boolean }
 ): Promise<WriteMemoryResponse & { sanitized?: boolean; sanitization_log?: string[] }> {
   // 0. 敏感信息检测（最前端，早于 embedding 生成）
   const filterResult = checkContent(req.content, {
@@ -60,14 +60,16 @@ export async function writeMemory(
   const db = await getDb();
   const embedding = await generateEmbedding(sanitizedContent);
 
-  // 1. 冲突检测（写入前检查）
-  const conflicts = await detectConflicts(
-    embedding,
-    req.entity_tags ?? [],
-    req.scope,
-    req.project_id,
-    db
-  );
+  // 1. 冲突检测（写入前检查，可通过 skipConflictCheck 跳过）
+  const conflicts = req.skipConflictCheck
+    ? []
+    : await detectConflicts(
+        embedding,
+        req.entity_tags ?? [],
+        req.scope,
+        req.project_id,
+        db
+      );
 
   // 2. 写入记忆
   const result = await db.query(

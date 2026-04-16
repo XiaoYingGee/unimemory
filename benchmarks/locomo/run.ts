@@ -82,6 +82,8 @@ async function ingestConversation(conv: LoCoMoConversation): Promise<void> {
         importance_score: 0.5,
         entity_tags: [`session:${sessionId}`, `speaker:${turn.speaker}`],
         source_context: `LoCoMo turn ${turn.turn_id}`,
+        // Skip conflict detection in benchmark to avoid LLM timeout/502 crashes
+        skipConflictCheck: true,
       };
 
       await writeMemory(req);
