@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * LoCoMo Baseline Benchmark Runner
+ * LoCoMo Parallel Benchmark Runner
  * 
  * Tests UniMemory recall accuracy against the LoCoMo dataset.
  * Dataset: https://github.com/snap-research/LoCoMo
  * Paper: https://arxiv.org/abs/2402.17753 (ACL 2024)
  * 
  * Usage:
- *   npx ts-node benchmarks/locomo/run.ts [--sample N] [--conversation-id ID]
+ *   npx ts-node benchmarks/locomo/run.ts [--sample N] [--top-k K] [--concurrency C] [--conversation-id ID]
  * 
  * Environment:
  *   DATABASE_URL, UNIMEMORY_EMBEDDING_PROVIDER, etc. (same as main app)
@@ -33,7 +33,7 @@ interface LoCoMoTurn {
 interface LoCoMoQA {
   question: string;
   answer: string;
-  evidence_turn_ids: number[];  // Which turns contain the evidence
+  evidence_turn_ids: number[];
   category: 'single_hop' | 'multi_hop' | 'temporal' | 'open_domain';
 }
 
@@ -52,14 +52,46 @@ interface BenchmarkResult {
   avg_retrieval_ms: number;
 }
 
+// ---- Concurrency Utilities ----
+
+/**
+ * Run tasks with controlled concurrency
+ */
+async function runWithConcurrency<T>(
+  tasks: Array<() => Promise<T>>,
+  concurrency: number
+): Promise<T[]> {
+  const results: T[] = [];
+  const executing: Promise<any>[] = [];
+
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+    const promise = (async () => {
+      try {
+        results[i] = await task();
+      } catch (err) {
+        console.error(`Task ${i} failed:`, (err as Error).message);
+        results[i] = null as any;
+      }
+    })();
+
+    executing.push(promise);
+    if (executing.length >= concurrency) {
+      await Promise.race(executing);
+      executing.splice(executing.indexOf(promise), 1);
+    }
+  }
+
+  await Promise.all(executing);
+  return results;
+}
+
 // ---- Core Logic ----
 
 /**
  * Ingest a conversation into UniMemory.
- * Each session's turns are summarized into memory entries.
  */
 async function ingestConversation(conv: LoCoMoConversation): Promise<void> {
-  // Group turns by session
   const sessions = new Map<number, LoCoMoTurn[]>();
   for (const turn of conv.turns) {
     if (!sessions.has(turn.session_id)) sessions.set(turn.session_id, []);
@@ -67,13 +99,12 @@ async function ingestConversation(conv: LoCoMoConversation): Promise<void> {
   }
 
   for (const [sessionId, turns] of sessions) {
-    // Write each turn as a separate memory (simple ingestion strategy)
     for (const turn of turns) {
-      if (!turn.text || turn.text.trim().length < 10) continue; // Skip empty or very short turns
+      if (!turn.text || turn.text.trim().length < 10) continue;
 
       const req: WriteMemoryRequest = {
         content: `[Session ${sessionId}, ${turn.speaker}]: ${turn.text}`,
-        agent_id: 'locomo-benchmark',
+        agent_id: `locomo-${conv.conversation_id}`,
         scope: 'project',
         project_id: `locomo-${conv.conversation_id}`,
         memory_type: 'context',
@@ -82,7 +113,6 @@ async function ingestConversation(conv: LoCoMoConversation): Promise<void> {
         importance_score: 0.5,
         entity_tags: [`session:${sessionId}`, `speaker:${turn.speaker}`],
         source_context: `LoCoMo turn ${turn.turn_id}`,
-        // Skip conflict detection in benchmark to avoid LLM timeout/502 crashes
         skipConflictCheck: true,
       };
 
@@ -92,8 +122,7 @@ async function ingestConversation(conv: LoCoMoConversation): Promise<void> {
 }
 
 /**
- * Evaluate recall: search UniMemory for evidence related to each QA pair.
- * Returns true if at least one relevant memory was retrieved in top-K.
+ * Evaluate a single QA pair with configurable top-k
  */
 async function evaluateQA(
   qa: LoCoMoQA,
@@ -106,25 +135,22 @@ async function evaluateQA(
   try {
     results = await searchMemories({
       query: qa.question,
-      agent_id: 'locomo-benchmark',
+      agent_id: `locomo-${conversationId}`,
       scope_filter: ['project'],
       project_id: `locomo-${conversationId}`,
       top_k: topK,
       min_similarity: 0.5,
     });
   } catch (err) {
-    console.warn(`  [evaluateQA] searchMemories failed, skipping QA: ${(err as Error).message}`);
+    console.warn(`    [evaluateQA] searchMemories failed: ${(err as Error).message}`);
     return { correct: false, retrievalMs: Date.now() - start };
   }
 
   const retrievalMs = Date.now() - start;
 
-  // Check if retrieved memories contain the expected evidence
-  // Simple heuristic: does the answer appear in any retrieved memory?
   const answerTokens = String(qa.answer ?? '').toLowerCase().split(/\s+/).filter(t => t.length > 3);
   const correct = results.memories.some(mem => {
     const content = mem.content.toLowerCase();
-    // At least 50% of answer tokens should appear in the retrieved memory
     const matchCount = answerTokens.filter(t => content.includes(t)).length;
     return matchCount / answerTokens.length >= 0.5;
   });
@@ -132,20 +158,80 @@ async function evaluateQA(
   return { correct, retrievalMs };
 }
 
+/**
+ * Evaluate all QA pairs for a conversation in parallel
+ */
+async function evaluateConversationQAs(
+  conv: LoCoMoConversation,
+  topK: number,
+  qaParallelism: number
+): Promise<{
+  correct: number;
+  totalMs: number;
+  byCategory: Record<string, { total: number; correct: number; accuracy: number }>;
+}> {
+  const byCategory: Record<string, { total: number; correct: number; accuracy: number }> = {};
+  let correct = 0;
+  let totalMs = 0;
+
+  const tasks = conv.qa_pairs.map((qa) => async () => {
+    const { correct: isCorrect, retrievalMs } = await evaluateQA(qa, conv.conversation_id, topK);
+    return { isCorrect, retrievalMs, category: qa.category };
+  });
+
+  const evalResults = await runWithConcurrency(tasks, qaParallelism);
+
+  for (const result of evalResults) {
+    if (!result) continue;
+    if (result.isCorrect) correct++;
+    totalMs += result.retrievalMs;
+
+    if (!byCategory[result.category]) {
+      byCategory[result.category] = { total: 0, correct: 0, accuracy: 0 };
+    }
+    byCategory[result.category].total++;
+    if (result.isCorrect) byCategory[result.category].correct++;
+  }
+
+  for (const cat of Object.values(byCategory)) {
+    cat.accuracy = cat.total > 0 ? cat.correct / cat.total : 0;
+  }
+
+  return { correct, totalMs, byCategory };
+}
+
+/**
+ * Ingest multiple conversations in parallel
+ */
+async function ingestConversationsParallel(
+  conversations: LoCoMoConversation[],
+  concurrency: number
+): Promise<void> {
+  const tasks = conversations.map((conv) => async () => {
+    try {
+      await ingestConversation(conv);
+    } catch (err) {
+      console.error(`  Ingestion failed for ${conv.conversation_id}:`, err);
+    }
+  });
+
+  await runWithConcurrency(tasks, concurrency);
+}
+
 // ---- Runner ----
 
 async function runBenchmark(options: {
   dataPath: string;
   sampleSize?: number;
+  topK?: number;
+  concurrency?: number;
   conversationId?: string;
 }): Promise<BenchmarkResult[]> {
-  const { dataPath, sampleSize, conversationId } = options;
+  const { dataPath, sampleSize, topK = 5, concurrency = 3, conversationId } = options;
 
   const rawData: any[] = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
 
-  // Normalize LoCoMo format to internal format
   let conversations: LoCoMoConversation[] = rawData.map((sample: any) => {
-    // Build turns from session_1, session_2, ... keys
     const turns: LoCoMoTurn[] = [];
     let turnId = 0;
     let sessionId = 1;
@@ -164,7 +250,6 @@ async function runBenchmark(options: {
       sessionId++;
     }
 
-    // Normalize QA pairs — guard against non-string fields in the dataset
     const qa_pairs: LoCoMoQA[] = (sample.qa ?? []).map((q: any) => ({
       question: String(q.question ?? ''),
       answer: String(q.answer ?? ''),
@@ -187,38 +272,26 @@ async function runBenchmark(options: {
     conversations = conversations.slice(0, sampleSize);
   }
 
+  console.log(`\n[Benchmark] Ingesting ${conversations.length} conversations with concurrency=${concurrency}...`);
+  
+  // Parallel ingestion
+  for (let i = 0; i < conversations.length; i += concurrency) {
+    const batch = conversations.slice(i, i + concurrency);
+    for (const conv of batch) {
+      console.log(`  Ingesting ${conv.conversation_id} (${conv.turns.length} turns)...`);
+    }
+    await ingestConversationsParallel(batch, concurrency);
+    for (const conv of batch) {
+      console.log(`    ✓ ${conv.conversation_id} ingested`);
+    }
+  }
+
+  console.log(`\n[Benchmark] Evaluating QAs with top_k=${topK}...`);
+
   const results: BenchmarkResult[] = [];
 
   for (const conv of conversations) {
-    console.log(`\n[LoCoMo] Processing conversation ${conv.conversation_id}...`);
-    console.log(`  Turns: ${conv.turns.length}, QA pairs: ${conv.qa_pairs.length}`);
-
-    // Ingest conversation into UniMemory
-    await ingestConversation(conv);
-    console.log(`  ✓ Ingested ${conv.turns.length} turns`);
-
-    // Evaluate each QA pair
-    let correct = 0;
-    let totalMs = 0;
-    const byCategory: Record<string, { total: number; correct: number; accuracy: number }> = {};
-
-    for (const qa of conv.qa_pairs) {
-      const { correct: isCorrect, retrievalMs } = await evaluateQA(qa, conv.conversation_id);
-      totalMs += retrievalMs;
-      if (isCorrect) correct++;
-
-      // Track by category
-      if (!byCategory[qa.category]) {
-        byCategory[qa.category] = { total: 0, correct: 0, accuracy: 0 };
-      }
-      byCategory[qa.category].total++;
-      if (isCorrect) byCategory[qa.category].correct++;
-    }
-
-    // Calculate category accuracies
-    for (const cat of Object.values(byCategory)) {
-      cat.accuracy = cat.total > 0 ? cat.correct / cat.total : 0;
-    }
+    const { correct, totalMs, byCategory } = await evaluateConversationQAs(conv, topK, 5);
 
     const result: BenchmarkResult = {
       conversation_id: conv.conversation_id,
@@ -230,16 +303,16 @@ async function runBenchmark(options: {
     };
 
     results.push(result);
-    console.log(`  Accuracy: ${(result.accuracy * 100).toFixed(1)}% (${correct}/${conv.qa_pairs.length})`);
+    console.log(`  ${conv.conversation_id}: ${(result.accuracy * 100).toFixed(1)}% (${correct}/${conv.qa_pairs.length})`);
   }
 
   return results;
 }
 
-function printSummary(results: BenchmarkResult[]): void {
-  console.log('\n' + '='.repeat(60));
-  console.log('LoCoMo Benchmark Results — UniMemory Baseline');
-  console.log('='.repeat(60));
+function printSummary(results: BenchmarkResult[], topK: number): void {
+  console.log('\n' + '='.repeat(70));
+  console.log(`LoCoMo Benchmark Results — UniMemory (top_k=${topK})`);
+  console.log('='.repeat(70));
 
   const totalQA = results.reduce((s, r) => s + r.total_qa, 0);
   const totalCorrect = results.reduce((s, r) => s + r.correct, 0);
@@ -248,8 +321,6 @@ function printSummary(results: BenchmarkResult[]): void {
 
   console.log(`\nOverall Accuracy : ${(overallAccuracy * 100).toFixed(1)}% (${totalCorrect}/${totalQA})`);
   console.log(`Avg Retrieval    : ${avgMs.toFixed(0)}ms`);
-  console.log(`Target (P1)      : > 70%`);
-  console.log(`Status           : ${overallAccuracy >= 0.7 ? '✅ PASS' : '⚠️  BELOW TARGET'}`);
 
   console.log('\nPer-conversation breakdown:');
   for (const r of results) {
@@ -257,7 +328,6 @@ function printSummary(results: BenchmarkResult[]): void {
     console.log(`  ${r.conversation_id.padEnd(20)} ${pct}% (${r.correct}/${r.total_qa})`);
   }
 
-  // Category breakdown (aggregate across conversations)
   const allCategories = new Set(results.flatMap(r => Object.keys(r.by_category)));
   if (allCategories.size > 0) {
     console.log('\nBy category:');
@@ -269,7 +339,7 @@ function printSummary(results: BenchmarkResult[]): void {
     }
   }
 
-  console.log('\n' + '='.repeat(60));
+  console.log('\n' + '='.repeat(70));
 }
 
 // ---- Entry point ----
@@ -277,6 +347,8 @@ function printSummary(results: BenchmarkResult[]): void {
 async function main() {
   const args = process.argv.slice(2);
   const sampleArg = args.find(a => a.startsWith('--sample='));
+  const topKArg = args.find(a => a.startsWith('--top-k='));
+  const concArg = args.find(a => a.startsWith('--concurrency='));
   const convArg = args.find(a => a.startsWith('--conversation-id='));
 
   const dataPath = path.join(__dirname, 'data', 'locomo.json');
@@ -287,19 +359,23 @@ async function main() {
     process.exit(1);
   }
 
+  const topK = topKArg ? parseInt(topKArg.split('=')[1]) : 5;
+  const concurrency = concArg ? parseInt(concArg.split('=')[1]) : 3;
+
   const results = await runBenchmark({
     dataPath,
     sampleSize: sampleArg ? parseInt(sampleArg.split('=')[1]) : undefined,
+    topK,
+    concurrency,
     conversationId: convArg ? convArg.split('=')[1] : undefined,
   });
 
-  printSummary(results);
+  printSummary(results, topK);
 
-  // Save results to file
-  const outPath = path.join(__dirname, 'results', `baseline-${Date.now()}.json`);
+  const outPath = path.join(__dirname, 'results', `parallel-topk${topK}-${Date.now()}.json`);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, JSON.stringify({ results, timestamp: new Date().toISOString() }, null, 2));
-  console.log(`\nResults saved to: ${outPath}`);
+  fs.writeFileSync(outPath, JSON.stringify({ results, topK, timestamp: new Date().toISOString() }, null, 2));
+  console.log(`Results saved to: ${outPath}`);
 }
 
 main().catch(err => {
