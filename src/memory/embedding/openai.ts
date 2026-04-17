@@ -45,8 +45,8 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
       } catch (err) {
         lastErr = err;
         const msg = (err as Error).message ?? '';
-        // 429 rate limit: exponential backoff
-        if (msg.includes('429') || msg.includes('rate limit')) {
+        // 429 rate limit 或 499 proxy timeout: exponential backoff
+        if (msg.includes('429') || msg.includes('499') || msg.includes('rate limit')) {
           const waitMs = Math.min(2000 * Math.pow(2, attempt), 30000);
           await new Promise(r => setTimeout(r, waitMs));
           continue;

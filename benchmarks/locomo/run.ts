@@ -291,7 +291,7 @@ async function runBenchmark(options: {
   const results: BenchmarkResult[] = [];
 
   for (const conv of conversations) {
-    const { correct, totalMs, byCategory } = await evaluateConversationQAs(conv, topK, 5);
+    const { correct, totalMs, byCategory } = await evaluateConversationQAs(conv, topK, 2);
 
     const result: BenchmarkResult = {
       conversation_id: conv.conversation_id,
