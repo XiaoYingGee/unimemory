@@ -61,29 +61,24 @@ async function runWithConcurrency<T>(
   tasks: Array<() => Promise<T>>,
   concurrency: number
 ): Promise<T[]> {
-  const results: T[] = [];
-  const executing: Promise<any>[] = [];
+  const results: (T | null)[] = new Array(tasks.length).fill(null);
+  let index = 0;
 
-  for (let i = 0; i < tasks.length; i++) {
-    const task = tasks[i];
-    const promise = (async () => {
+  async function worker() {
+    while (index < tasks.length) {
+      const i = index++;
       try {
-        results[i] = await task();
+        results[i] = await tasks[i]();
       } catch (err) {
         console.error(`Task ${i} failed:`, (err as Error).message);
-        results[i] = null as any;
+        results[i] = null;
       }
-    })();
-
-    executing.push(promise);
-    if (executing.length >= concurrency) {
-      await Promise.race(executing);
-      executing.splice(executing.indexOf(promise), 1);
     }
   }
 
-  await Promise.all(executing);
-  return results;
+  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker());
+  await Promise.all(workers);
+  return results as T[];
 }
 
 // ---- Core Logic ----
