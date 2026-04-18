@@ -1,0 +1,256 @@
+{
+  "conversationId": "conv-26",
+  "samples": [
+    {
+      "idx": 3,
+      "category": "single_hop",
+      "question": "What did Caroline research?",
+      "expected": "Adoption agencies",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 18,
+      "category": "single_hop",
+      "question": "Where has Melanie camped?",
+      "expected": "beach, mountains, forest",
+      "generated": "The forest",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 37,
+      "category": "single_hop",
+      "question": "What did Melanie paint recently?",
+      "expected": "sunset",
+      "generated": "A sunset-inspired painting and a horse painting.",
+      "judge_verdict": true,
+      "judge_raw": "{\"correct\": true}",
+      "token_overlap_correct": true
+    },
+    {
+      "idx": 48,
+      "category": "single_hop",
+      "question": "What types of pottery have Melanie and her kids made?",
+      "expected": "bowls, cup",
+      "generated": "Pots and a cup.",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 61,
+      "category": "single_hop",
+      "question": "What musical artists/bands has Melanie seen?",
+      "expected": "Summer Sounds, Matt Patterson",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 0,
+      "category": "multi_hop",
+      "question": "When did Caroline go to the LGBTQ support group?",
+      "expected": "7 May 2023",
+      "generated": "Yesterday (Session 1)",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 12,
+      "category": "multi_hop",
+      "question": "How long ago was Caroline's 18th birthday?",
+      "expected": "10 years ago",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 28,
+      "category": "multi_hop",
+      "question": "When did Caroline go to the adoption meeting?",
+      "expected": "The friday before 15 July 2023",
+      "generated": "Last Friday (Session 8)",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 44,
+      "category": "multi_hop",
+      "question": "When is Melanie's daughter's birthday?",
+      "expected": "13 August",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 62,
+      "category": "multi_hop",
+      "question": "When did Melanie go to the park?",
+      "expected": "27 August 2023",
+      "generated": "Yesterday",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 2,
+      "category": "temporal",
+      "question": "What fields would Caroline be likely to pursue in her educaton?",
+      "expected": "Psychology, counseling certification",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 22,
+      "category": "temporal",
+      "question": "Would Caroline likely have Dr. Seuss books on her bookshelf?",
+      "expected": "Yes, since she collects classic children's books",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 30,
+      "category": "temporal",
+      "question": "Would Melanie be considered a member of the LGBTQ community?",
+      "expected": "Likely no, she does not refer to herself as part of it",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 46,
+      "category": "temporal",
+      "question": "Would Melanie be considered an ally to the transgender community?",
+      "expected": "Yes, she is supportive",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 59,
+      "category": "temporal",
+      "question": "Would Caroline be considered religious?",
+      "expected": "Somewhat, but not extremely religious",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 82,
+      "category": "open_domain",
+      "question": "What did the charity race raise awareness for?",
+      "expected": "mental health",
+      "generated": "Mental health",
+      "judge_verdict": true,
+      "judge_raw": "{\"correct\": true}",
+      "token_overlap_correct": true
+    },
+    {
+      "idx": 96,
+      "category": "open_domain",
+      "question": "What kind of counseling and mental health services is Caroline interested in pursuing?",
+      "expected": "working with trans people, helping them accept themselves and supporting their mental health",
+      "generated": "Working with trans people, supporting their mental health and self-acceptance.",
+      "judge_verdict": true,
+      "judge_raw": "{\"correct\": true}",
+      "token_overlap_correct": true
+    },
+    {
+      "idx": 110,
+      "category": "open_domain",
+      "question": "What kind of pot did Mel and her kids make with clay?",
+      "expected": "a cup with a dog face on it",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 124,
+      "category": "open_domain",
+      "question": "What pets does Melanie have?",
+      "expected": "Two cats and a dog",
+      "generated": "A dog and a cat.",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 138,
+      "category": "open_domain",
+      "question": "What kind of painting did Caroline share with Melanie on October 13, 2023?",
+      "expected": "An abstract painting with blue streaks on a wall.",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 152,
+      "category": "adversarial",
+      "question": "What did Caroline realize after her charity race?",
+      "expected": "",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 161,
+      "category": "adversarial",
+      "question": "What is Caroline's hand-painted bowl a reminder of?",
+      "expected": "",
+      "generated": "Art and self-expression",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 170,
+      "category": "adversarial",
+      "question": "What does Caroline say running has been great for?",
+      "expected": "",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 179,
+      "category": "adversarial",
+      "question": "Where did Oscar hide his bone once?",
+      "expected": "",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\": false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 188,
+      "category": "adversarial",
+      "question": "What setback did Caroline face recently?",
+      "expected": "",
+      "generated": "None",
+      "judge_verdict": true,
+      "judge_raw": "{\"correct\": true}",
+      "token_overlap_correct": false
+    }
+  ],
+  "timestamp": "2026-04-18T10:33:41.835Z"
+}
