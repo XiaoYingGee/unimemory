@@ -73,8 +73,8 @@ VERDICT: WRONG`;
 async function callLLMForJudge(prompt: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY ?? '';
   const baseUrl = (process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  // Judge model: gpt-5 for highest accuracy (JUDGE_MODEL override)
-  const model = process.env.JUDGE_MODEL ?? 'gpt-5';
+  // Judge model: gpt-5.4 for highest accuracy (JUDGE_MODEL override)
+  const model = process.env.JUDGE_MODEL ?? 'gpt-5.4';
 
   const maxRetries = 5;
   let lastErr: unknown;

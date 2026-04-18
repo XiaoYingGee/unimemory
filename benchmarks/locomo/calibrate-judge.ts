@@ -34,8 +34,8 @@ const CATEGORY_MAP: Record<number, string> = {
 async function callLLM(prompt: string, isJudge: boolean): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY ?? '';
   const baseUrl = (process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  // answer generation uses UNIMEMORY_LLM_MODEL (gpt-4o-mini); judge uses JUDGE_MODEL (gpt-5)
-  const model = isJudge ? (process.env.JUDGE_MODEL ?? 'gpt-5') : (process.env.UNIMEMORY_LLM_MODEL ?? 'gpt-4o-mini');
+  // answer generation uses UNIMEMORY_LLM_MODEL (gpt-4o-mini); judge uses JUDGE_MODEL (gpt-5.4)
+  const model = isJudge ? (process.env.JUDGE_MODEL ?? 'gpt-5.4') : (process.env.UNIMEMORY_LLM_MODEL ?? 'gpt-4o-mini');
 
   const maxRetries = 5;
   let lastErr: unknown;
@@ -126,7 +126,7 @@ VERDICT: CORRECT
 or
 VERDICT: WRONG`;
 
-  const raw = await callLLM(prompt, true); // judge: use gpt-5
+  const raw = await callLLM(prompt, true); // judge: use gpt-5.4
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
   const verdict = verdictLine ? verdictLine.toUpperCase().includes('CORRECT') : false;
   return { verdict, raw };
