@@ -18,6 +18,7 @@ import * as path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { writeMemory, searchMemories } from '../../src/memory/service';
+import { getDb } from '../../src/db/connection';
 import { WriteMemoryRequest } from '../../src/memory/types';
 import * as fs from 'fs';
 
@@ -263,6 +264,30 @@ async function ingestConversation(conv: LoCoMoConversation): Promise<void> {
 /**
  * Evaluate a single QA pair with configurable top-k
  */
+/** Search event index directly by agent_id (bypasses scope filter) */
+async function searchEventMemories(
+  query: string,
+  agentId: string,
+  topK: number = 5,
+  minSimilarity: number = 0.5
+): Promise<{ content: string }[]> {
+  const { generateEmbedding } = await import('../../src/memory/embedding/index');
+  const db = await getDb();
+  const emb = await generateEmbedding(query);
+  const result = await db.query(
+    `SELECT content, 1 - (embedding <=> $1::vector) AS sim
+     FROM memories
+     WHERE agent_id = $2
+       AND status = 'active'
+       AND archived_at IS NULL
+       AND 1 - (embedding <=> $1::vector) > $3
+     ORDER BY sim DESC
+     LIMIT $4`,
+    [JSON.stringify(emb), agentId, minSimilarity, topK]
+  );
+  return result.rows;
+}
+
 async function evaluateQA(
   qa: LoCoMoQA,
   conversationId: string,
@@ -272,15 +297,20 @@ async function evaluateQA(
   const start = Date.now();
 
   let results: Awaited<ReturnType<typeof searchMemories>>;
+  let eventMemories: { content: string }[] = [];
   try {
-    results = await searchMemories({
-      query: qa.question,
-      agent_id: `locomo-${conversationId}`,
-      scope_filter: ['project'],
-      project_id: `locomo-${conversationId}`,
-      top_k: topK,
-      min_similarity: 0.5,
-    });
+    // Parallel retrieval: chunks + event index
+    [results, eventMemories] = await Promise.all([
+      searchMemories({
+        query: qa.question,
+        agent_id: `locomo-${conversationId}`,
+        scope_filter: ['project'],
+        project_id: `locomo-${conversationId}`,
+        top_k: topK,
+        min_similarity: 0.5,
+      }),
+      searchEventMemories(qa.question, `locomo-events-${conversationId}`, 5, 0.5).catch(() => []),
+    ]);
   } catch (err) {
     console.warn(`    [evaluateQA] searchMemories failed: ${(err as Error).message}`);
     return { correct: false, f1Correct: false, retrievalMs: Date.now() - start };
@@ -297,20 +327,19 @@ async function evaluateQA(
   });
 
   if (useLLM && results.memories.length > 0) {
-    // OPT-2: LLM 回答层
+    // OPT-3: LLM 回答层 + event index (events first for temporal anchoring)
     try {
-      const context = results.memories
+      const eventContext = eventMemories.length
+        ? `[Events with timestamps - reference for time-related questions]\n` +
+          eventMemories.map((m, i) => `[E${i + 1}] ${m.content}`).join('\n')
+        : '';
+      const chunkContext = results.memories
         .map((m, i) => `[${i + 1}] ${m.content}`)
         .join('\n');
-      const prompt = `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.
-
-Context:
-${context}
-
-Question: ${qa.question}
-
-If the answer cannot be determined from the context, respond with "None".
-Respond with ONLY the answer (a few words), no explanation.`;
+      const context = eventContext
+        ? `${eventContext}\n\n[Conversation excerpts]\n${chunkContext}`
+        : chunkContext;
+      const prompt = `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.\n\nContext:\n${context}\n\nQuestion: ${qa.question}\n\nIf the answer cannot be determined from the context, respond with "None".\nRespond with ONLY the answer (a few words), no explanation.`;
 
       const llmAnswer = await callLLMForAnswer(prompt);
       // Use semantic judge (CoT v3) as main metric
