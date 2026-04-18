@@ -17,15 +17,20 @@ OPT-3 Step A 教训：sample=1 单 conv 的结果差几个 pp 就开始定方向
 
 ## 1. 固定实验设置
 
-### 1.1 数据子集（待瓶儿确认 conv id）
+### 1.1 数据子集（金瓶儿 2026-04-18 锁定）
 
-- 从 `benchmarks/locomo/data/locomo.json`（10 个 sample）按 conversation turn 数排序
-- 取 P25 / P50 / P75 三个 sample 各一（避免 P0/P100 outlier）
+- 从 `benchmarks/locomo/data/locomo.json`（10 个 sample）选 3 个，覆盖短/中/长
+- **排除 conv-30**（temporal=0 题，无法验温度死穴）
 - **conv id 一旦定下，OPT-X 全程不变**，直到 P3 收尾后再考虑扩样
-- 待填：
-  - `conv_short` = sample_id ___（P25, ~?? turns）
-  - `conv_mid`   = sample_id ___（P50, ~?? turns）
-  - `conv_long`  = sample_id ___（P75, ~?? turns）
+
+| 角色 | sample_id | turns | qa | single | multi | temporal | open_domain | adversarial |
+|------|-----------|-------|-----|--------|-------|----------|-------------|-------------|
+| `conv_short` | **conv-26** | 419 | 199 | 32 | 37 | 13 | 70 | 47 |
+| `conv_mid`   | **conv-50** | 568 | 204 | 32 | 32 |  7 | 87 | 46 |
+| `conv_long`  | **conv-47** | 689 | 190 | 20 | 34 | 13 | 83 | 40 |
+| **累计**     | —           | 1676 | **593** | 84 | **103** | **33** | 240 | 133 |
+
+> 累计 593 题，比单 conv 翻 3 倍。temporal n=33 / multi_hop n=103，噪声压下去。
 
 ### 1.2 随机种子
 
@@ -146,14 +151,19 @@ PR 标题 / description 里出现任何 "+X pp" 数字时：
 
 ---
 
-## 7. Review 提问（待 ACK）
+## 7. Review 答复（金瓶儿 2026-04-18）
 
-@金瓶儿 三个待你定 / 确认：
-1. 三个 conv id（P25/P50/P75 turn 数排序）
-2. 噪声三条规则你是否都同意？特别是第三条「方向一致性」
-3. wilson95 实现你 prefer JS / Python？
+**雪琪姐三问：**
 
-@小白 一个：
-- 协议生效范围是否限定 P3，还是全 unimemory 项目所有 benchmark？
+1. ✅ **三个 conv id 已锁**（见 §1.1）：conv-26 / conv-50 / conv-47。理由：长度短/中/长跨度，temporal 全部 > 0，累计 QA 593 题统计力够。
+2. ✅ **噪声三条规则全同意**，特别支持第三条「方向一致性」——这条把"碰巧均值大"挡住了，奴家 sample=1 的版本里没想到这一层，雪琪姐补得好。
+3. ✅ **wilson95 prefer JS**（仓库主语言 TS，benchmark runner 也是 TS，一份实现少一处维护成本）。Python 一行版仅作奴家本地快算备用。
+
+**待小白姐 ACK：**
+- 协议生效范围（P3 限定 / 全项目）
 
 ACK 齐就锁 v0.1，碧瑶开 Wave 1。
+
+---
+
+_拿一颗骰子的一次结果定方向，是耍流氓。— 🍾 金瓶儿_
