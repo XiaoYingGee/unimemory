@@ -104,9 +104,11 @@ async function judgeAnswer(expected: string, generated: string, question: string
   const exp = expected.toLowerCase().trim();
   const gen = generated.toLowerCase().trim();
 
-  // adversarial shortcut
-  if (exp === 'none') {
-    const verdict = gen.includes('none') || gen === 'n/a' || gen === '';
+  // adversarial / unanswerable: expected empty or 'none' = question should be refused
+  const UNANSWERABLE = ['none', '', 'n/a'];
+  const REFUSAL = ['none', '', 'n/a', "i don't know", 'unknown', 'not mentioned', 'not specified'];
+  if (UNANSWERABLE.includes(exp)) {
+    const verdict = REFUSAL.some(r => r !== '' && gen.includes(r)) || gen === '';
     return { verdict, raw: JSON.stringify({ correct: verdict }) };
   }
 
@@ -116,6 +118,7 @@ Question: ${question}
 Expected answer: ${expected}
 Generated answer: ${generated}
 
+IMPORTANT: When the expected answer is "None" or empty, the question is unanswerable; if the generated answer also indicates inability to answer (None / N/A / I don't know / unknown), treat as CORRECT.
 Respond with ONLY a JSON object: {"correct": true} or {"correct": false}.
 Be lenient with paraphrasing and synonyms — if the meaning matches, it is correct.`;
 

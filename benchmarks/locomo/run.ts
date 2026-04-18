@@ -28,11 +28,13 @@ import * as fs from 'fs';
  * Returns true/false. Uses same retry/backoff as callLLMForAnswer.
  */
 async function judgeAnswer(expected: string, generated: string, question: string): Promise<boolean> {
-  // adversarial shortcut
   const exp = expected.toLowerCase().trim();
   const gen = generated.toLowerCase().trim();
-  if (exp === 'none') {
-    return gen.includes('none') || gen === 'n/a' || gen === '';
+  // adversarial / unanswerable: expected empty or 'none' means question should be refused
+  const UNANSWERABLE = ['none', '', 'n/a'];
+  const REFUSAL = ['none', '', 'n/a', "i don't know", 'unknown', 'not mentioned', 'not specified'];
+  if (UNANSWERABLE.includes(exp)) {
+    return REFUSAL.some(r => r !== '' && gen.includes(r)) || gen === '';
   }
 
   const prompt = `You are an answer evaluation assistant. Decide if the generated answer correctly answers the question, given the expected answer as ground truth.
@@ -41,6 +43,7 @@ Question: ${question}
 Expected answer: ${expected}
 Generated answer: ${generated}
 
+IMPORTANT: When the expected answer is "None" or empty, the question is unanswerable; if the generated answer also indicates inability to answer (None / N\/A / I don't know / unknown), treat as CORRECT.
 Respond with ONLY a JSON object: {"correct": true} or {"correct": false}.
 Be lenient with paraphrasing and synonyms — if the meaning matches, it is correct.`;
 
