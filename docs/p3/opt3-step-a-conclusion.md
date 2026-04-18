@@ -12,9 +12,11 @@
 | 决定 | 状态 | 备注 |
 |---|---|---|
 | OPT-3 Step A（事件索引） | ❌ **关闭** | C vs B 全类目噪声，假设证伪 |
-| OPT-2 LLM 回答层 | ⏸️ **条件接受**，**不直接 merge** | open_domain 反向阻塞 |
-| **OPT-2.5（救 open_domain）** | 🎯 **新增 L1，merge 前置阻塞** | 瓶儿验收 spec 4 条全过才解锁 |
-| OPT-3 Step B（Zep/Graphiti） | ⏸️ **后置**，OPT-2.5 通过后启动 |
+| OPT-2 代码 merge 进 main | ✅ **不阻塞** | 代码本身没 bug，+14.6pp 真实 |
+| `--llm` opt-in flag 保留 | ✅ **不阻塞** | 用户可手动开，知 risk |
+| OPT-2 default-ON 翻转 | ⛔ **阻塞** | open_domain -10pp 副作用未排 |
+| **OPT-2.5（救 open_domain）** | 🎯 **default-ON 解锁前置** | 瓶儿 4 条验收 spec |
+| OPT-3 Step B（Zep/Graphiti） | 🟡 **OPT-2.5 之后**，不强阻塞 | 优先级 P2 |
 
 **v1 决策的错**：把 open_domain -10pp 当作"弱信号 follow-up"放走 = 把模糊地带往**松**的方向定标。瓶儿那刀拦得对——三 conv 同向 -10pp 是稳定副作用，CI 重叠只是 n 不够大叫不出来，不代表问题不存在。
 
@@ -59,8 +61,9 @@
 | 层 | 工作 | 通过条件 | ETA |
 |---|---|---|---|
 | L0 | OPT-3 events 关闭 | ✅ 已确认 | done |
+| **L0.5** | **OPT-2 代码 merge（default OFF + opt-in flag）** | PR #21 review 通过 | 立刻 |
 | **L1** | **OPT-2.5 救 open_domain** | 瓶儿验收 spec 4 条全过 | 1-2h（明天瑶儿） |
-| L2 | OPT-2 + 2.5 合并锁 default | merge PR #21 | L1 完成后 |
+| L2 | default 翻 ON | L1 通过 | L1 完成后 |
 | L3 | OPT-3 Step B (Zep/Graphiti bi-temporal) | 见 §5 DoD | 1 周 |
 
 ### L1 OPT-2.5 验收 spec（瓶儿划红线，全收）
