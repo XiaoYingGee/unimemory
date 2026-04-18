@@ -44,13 +44,20 @@ Expected answer: ${expected}
 Generated answer: ${generated}
 
 IMPORTANT: When the expected answer is "None" or empty, the question is unanswerable; if the generated answer also indicates inability to answer (None / N\/A / I don't know / unknown), treat as CORRECT.
-Respond with ONLY a JSON object: {"correct": true} or {"correct": false}.
-Be lenient with paraphrasing and synonyms — if the meaning matches, it is correct.`;
+Be lenient with paraphrasing and synonyms — if the meaning matches, it is correct.
+
+First explain your reasoning step by step, then on the last line output exactly:
+VERDICT: CORRECT
+or
+VERDICT: WRONG`;
 
   try {
     const raw = await callLLMForJudge(prompt);
-    const parsed = JSON.parse(raw) as { correct: boolean };
-    return parsed.correct === true;
+    // Parse CoT response: take the last line with VERDICT:
+    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+    const verdictLine = [...lines].reverse().find(l => l.toUpperCase().startsWith('VERDICT:'));
+    if (!verdictLine) throw new Error('No VERDICT line found');
+    return verdictLine.toUpperCase().includes('CORRECT');
   } catch {
     // fallback to token overlap if judge fails
     const answerTokens = exp.split(/\s+/).filter(t => t.length > 2);
@@ -66,7 +73,8 @@ Be lenient with paraphrasing and synonyms — if the meaning matches, it is corr
 async function callLLMForJudge(prompt: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY ?? '';
   const baseUrl = (process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  const model = process.env.UNIMEMORY_LLM_MODEL ?? 'gpt-4o-mini';
+  // Judge model locked to gpt-4o-mini (mem0 standard, cost-effective, override with JUDGE_MODEL)
+  const model = process.env.JUDGE_MODEL ?? 'gpt-4o-mini';
 
   const maxRetries = 5;
   let lastErr: unknown;
@@ -79,8 +87,8 @@ async function callLLMForJudge(prompt: string): Promise<string> {
           model,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0,
-          max_tokens: 20,
-          response_format: { type: 'json_object' },
+          max_tokens: 300,
+          // CoT: plain text response, not JSON mode
         }),
       });
       if (res.status === 429 || res.status === 499) {
@@ -182,7 +190,9 @@ interface BenchmarkResult {
   total_qa: number;
   correct: number;
   accuracy: number;
-  by_category: Record<string, { total: number; correct: number; accuracy: number }>;
+  f1_correct: number;
+  f1_accuracy: number;
+  by_category: Record<string, { total: number; correct: number; f1Correct: number; accuracy: number; f1Accuracy: number }>;
   avg_retrieval_ms: number;
 }
 
@@ -258,7 +268,7 @@ async function evaluateQA(
   conversationId: string,
   topK: number = 5,
   useLLM: boolean = false
-): Promise<{ correct: boolean; retrievalMs: number }> {
+): Promise<{ correct: boolean; f1Correct: boolean; retrievalMs: number }> {
   const start = Date.now();
 
   let results: Awaited<ReturnType<typeof searchMemories>>;
@@ -273,10 +283,18 @@ async function evaluateQA(
     });
   } catch (err) {
     console.warn(`    [evaluateQA] searchMemories failed: ${(err as Error).message}`);
-    return { correct: false, retrievalMs: Date.now() - start };
+    return { correct: false, f1Correct: false, retrievalMs: Date.now() - start };
   }
 
   const retrievalMs = Date.now() - start;
+
+  // F1 token-overlap (always computed as sanity check / mem0 standard)
+  const answerTokens = String(qa.answer ?? '').toLowerCase().split(/\s+/).filter(t => t.length > 3);
+  const f1Correct = answerTokens.length > 0 && results.memories.some(mem => {
+    const content = mem.content.toLowerCase();
+    const matchCount = answerTokens.filter(t => content.includes(t)).length;
+    return matchCount / answerTokens.length >= 0.5;
+  });
 
   if (useLLM && results.memories.length > 0) {
     // OPT-2: LLM 回答层
@@ -295,23 +313,16 @@ If the answer cannot be determined from the context, respond with "None".
 Respond with ONLY the answer (a few words), no explanation.`;
 
       const llmAnswer = await callLLMForAnswer(prompt);
-      // Use semantic judge instead of token overlap for fair evaluation
+      // Use semantic judge (CoT v3) as main metric
       const correct = await judgeAnswer(String(qa.answer ?? ''), llmAnswer, qa.question);
-      return { correct, retrievalMs };
+      return { correct, f1Correct, retrievalMs };
     } catch (err) {
       console.warn(`    [evaluateQA] LLM answer failed: ${(err as Error).message}, falling back to token match`);
     }
   }
 
-  // Baseline: keyword token matching
-  const answerTokens = String(qa.answer ?? '').toLowerCase().split(/\s+/).filter(t => t.length > 3);
-  const correct = results.memories.some(mem => {
-    const content = mem.content.toLowerCase();
-    const matchCount = answerTokens.filter(t => content.includes(t)).length;
-    return matchCount / answerTokens.length >= 0.5;
-  });
-
-  return { correct, retrievalMs };
+  // Baseline: use F1 token match as main metric
+  return { correct: f1Correct, f1Correct, retrievalMs };
 }
 
 /**
@@ -324,16 +335,18 @@ async function evaluateConversationQAs(
   useLLM: boolean = false
 ): Promise<{
   correct: number;
+  f1Correct: number;
   totalMs: number;
-  byCategory: Record<string, { total: number; correct: number; accuracy: number }>;
+  byCategory: Record<string, { total: number; correct: number; f1Correct: number; accuracy: number; f1Accuracy: number }>;
 }> {
-  const byCategory: Record<string, { total: number; correct: number; accuracy: number }> = {};
+  const byCategory: Record<string, { total: number; correct: number; f1Correct: number; accuracy: number; f1Accuracy: number }> = {};
   let correct = 0;
+  let f1Correct = 0;
   let totalMs = 0;
 
   const tasks = conv.qa_pairs.map((qa) => async () => {
-    const { correct: isCorrect, retrievalMs } = await evaluateQA(qa, conv.conversation_id, topK, useLLM);
-    return { isCorrect, retrievalMs, category: qa.category };
+    const { correct: isCorrect, f1Correct: isF1Correct, retrievalMs } = await evaluateQA(qa, conv.conversation_id, topK, useLLM);
+    return { isCorrect, isF1Correct, retrievalMs, category: qa.category };
   });
 
   const evalResults = await runWithConcurrency(tasks, qaParallelism);
@@ -341,20 +354,23 @@ async function evaluateConversationQAs(
   for (const result of evalResults) {
     if (!result) continue;
     if (result.isCorrect) correct++;
+    if (result.isF1Correct) f1Correct++;
     totalMs += result.retrievalMs;
 
     if (!byCategory[result.category]) {
-      byCategory[result.category] = { total: 0, correct: 0, accuracy: 0 };
+      byCategory[result.category] = { total: 0, correct: 0, f1Correct: 0, accuracy: 0, f1Accuracy: 0 };
     }
     byCategory[result.category].total++;
     if (result.isCorrect) byCategory[result.category].correct++;
+    if (result.isF1Correct) byCategory[result.category].f1Correct++;
   }
 
   for (const cat of Object.values(byCategory)) {
     cat.accuracy = cat.total > 0 ? cat.correct / cat.total : 0;
+    cat.f1Accuracy = cat.total > 0 ? cat.f1Correct / cat.total : 0;
   }
 
-  return { correct, totalMs, byCategory };
+  return { correct, f1Correct, totalMs, byCategory };
 }
 
 /**
@@ -449,19 +465,21 @@ async function runBenchmark(options: {
   const results: BenchmarkResult[] = [];
 
   for (const conv of conversations) {
-    const { correct, totalMs, byCategory } = await evaluateConversationQAs(conv, topK, 2, useLLM);
+    const { correct, f1Correct, totalMs, byCategory } = await evaluateConversationQAs(conv, topK, 2, useLLM);
 
     const result: BenchmarkResult = {
       conversation_id: conv.conversation_id,
       total_qa: conv.qa_pairs.length,
       correct,
       accuracy: conv.qa_pairs.length > 0 ? correct / conv.qa_pairs.length : 0,
+      f1_correct: f1Correct,
+      f1_accuracy: conv.qa_pairs.length > 0 ? f1Correct / conv.qa_pairs.length : 0,
       by_category: byCategory,
       avg_retrieval_ms: conv.qa_pairs.length > 0 ? totalMs / conv.qa_pairs.length : 0,
     };
 
     results.push(result);
-    console.log(`  ${conv.conversation_id}: ${(result.accuracy * 100).toFixed(1)}% (${correct}/${conv.qa_pairs.length})`);
+    console.log(`  ${conv.conversation_id}: judge=${(result.accuracy * 100).toFixed(1)}% f1=${(result.f1_accuracy * 100).toFixed(1)}% (${correct}/${conv.qa_pairs.length})`);
   }
 
   return results;

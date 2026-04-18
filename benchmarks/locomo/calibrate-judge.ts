@@ -44,7 +44,7 @@ async function callLLM(prompt: string, jsonMode: boolean): Promise<string> {
         model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
-        max_tokens: jsonMode ? 20 : 100,
+        max_tokens: jsonMode ? 20 : 300,
       };
       if (jsonMode) body.response_format = { type: 'json_object' };
 
@@ -119,16 +119,18 @@ Expected answer: ${expected}
 Generated answer: ${generated}
 
 IMPORTANT: When the expected answer is "None" or empty, the question is unanswerable; if the generated answer also indicates inability to answer (None / N/A / I don't know / unknown), treat as CORRECT.
-Respond with ONLY a JSON object: {"correct": true} or {"correct": false}.
-Be lenient with paraphrasing and synonyms — if the meaning matches, it is correct.`;
+Be lenient with paraphrasing and synonyms — if the meaning matches, it is correct.
 
-  const raw = await callLLM(prompt, true);
-  try {
-    const parsed = JSON.parse(raw) as { correct: boolean };
-    return { verdict: parsed.correct === true, raw };
-  } catch {
-    return { verdict: false, raw };
-  }
+First explain your reasoning step by step, then on the last line output exactly:
+VERDICT: CORRECT
+or
+VERDICT: WRONG`;
+
+  const raw = await callLLM(prompt, false);
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const verdictLine = [...lines].reverse().find(l => l.toUpperCase().startsWith('VERDICT:'));
+  const verdict = verdictLine ? verdictLine.toUpperCase().includes('CORRECT') : false;
+  return { verdict, raw };
 }
 
 // ---- Main ----
