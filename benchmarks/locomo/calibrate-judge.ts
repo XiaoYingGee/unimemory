@@ -31,10 +31,11 @@ const CATEGORY_MAP: Record<number, string> = {
 
 // ---- LLM helpers ----
 
-async function callLLM(prompt: string, jsonMode: boolean): Promise<string> {
+async function callLLM(prompt: string, isJudge: boolean): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY ?? '';
   const baseUrl = (process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  const model = process.env.UNIMEMORY_LLM_MODEL ?? 'gpt-4o-mini';
+  // answer generation uses UNIMEMORY_LLM_MODEL (gpt-4o-mini); judge uses JUDGE_MODEL (gpt-5)
+  const model = isJudge ? (process.env.JUDGE_MODEL ?? 'gpt-5') : (process.env.UNIMEMORY_LLM_MODEL ?? 'gpt-4o-mini');
 
   const maxRetries = 5;
   let lastErr: unknown;
@@ -44,9 +45,8 @@ async function callLLM(prompt: string, jsonMode: boolean): Promise<string> {
         model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
-        max_tokens: jsonMode ? 20 : 300,
+        max_tokens: isJudge ? 300 : 100,
       };
-      if (jsonMode) body.response_format = { type: 'json_object' };
 
       const res = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
@@ -126,9 +126,8 @@ VERDICT: CORRECT
 or
 VERDICT: WRONG`;
 
-  const raw = await callLLM(prompt, false);
+  const raw = await callLLM(prompt, true); // judge: use gpt-5
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  const verdictLine = [...lines].reverse().find(l => l.toUpperCase().startsWith('VERDICT:'));
   const verdict = verdictLine ? verdictLine.toUpperCase().includes('CORRECT') : false;
   return { verdict, raw };
 }
