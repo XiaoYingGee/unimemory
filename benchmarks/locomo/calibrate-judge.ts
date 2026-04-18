@@ -45,7 +45,7 @@ async function callLLM(prompt: string, isJudge: boolean): Promise<string> {
         model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
-        max_tokens: isJudge ? 300 : 100,
+        max_completion_tokens: isJudge ? 300 : 100,
       };
 
       const res = await fetch(`${baseUrl}/chat/completions`, {

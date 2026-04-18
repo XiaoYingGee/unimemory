@@ -87,7 +87,7 @@ async function callLLMForJudge(prompt: string): Promise<string> {
           model,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0,
-          max_tokens: 300,
+          max_completion_tokens: 300,
           // CoT: plain text response, not JSON mode
         }),
       });
@@ -134,7 +134,7 @@ async function callLLMForAnswer(prompt: string): Promise<string> {
           model,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0,
-          max_tokens: 100,
+          max_completion_tokens: 100,
         }),
       });
 
