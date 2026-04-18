@@ -65,7 +65,7 @@
 | L2 | OPT-2 + OPT-2.5 合并 merge（default ON） | PR #21 解除 BLOCKED | L1 完成后 |
 | L3 | OPT-3 Step B (Zep/Graphiti bi-temporal) | 见 §5 DoD | 1 周 |
 
-> 节奏说明：PR #21 当前状态 = `[blocked-on-opt-2.5]`，代码不先 merge。之前 v2.1 提过 L0.5「代码先 merge default OFF + opt-in flag」也是合法路线，两者对最终质量等价；本版以实际 PR 状态为准，取「整 PR 阻塞」路径。
+> **本次选 protocol §4.3 A 路径（整 PR 阻塞）的理由**：OPT-2 LLM 层本身无独立 opt-in 使用场景（用户不会手动调 `--llm` flag），先 merge 代码不产生验证价值；且 OPT-2.5 修复将直接叠加在同分支上，v2 路径一起 ship 可避免 cherry-pick 负担。未来如果某优化本身有 opt-in 使用场景（例如面向高级用户的实验 flag），可选 B 路径。
 
 ### L1 OPT-2.5 验收 spec（瓶儿划红线，全收）
 
