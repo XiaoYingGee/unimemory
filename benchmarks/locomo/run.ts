@@ -24,6 +24,83 @@ import * as fs from 'fs';
 // ---- LLM Answer Helper (OPT-2) ----
 
 /**
+ * LLM semantic judge: does `generated` answer correctly answer the question given `expected`?
+ * Returns true/false. Uses same retry/backoff as callLLMForAnswer.
+ */
+async function judgeAnswer(expected: string, generated: string, question: string): Promise<boolean> {
+  // adversarial shortcut
+  const exp = expected.toLowerCase().trim();
+  const gen = generated.toLowerCase().trim();
+  if (exp === 'none') {
+    return gen.includes('none') || gen === 'n/a' || gen === '';
+  }
+
+  const prompt = `You are an answer evaluation assistant. Decide if the generated answer correctly answers the question, given the expected answer as ground truth.
+
+Question: ${question}
+Expected answer: ${expected}
+Generated answer: ${generated}
+
+Respond with ONLY a JSON object: {"correct": true} or {"correct": false}.
+Be lenient with paraphrasing and synonyms — if the meaning matches, it is correct.`;
+
+  try {
+    const raw = await callLLMForJudge(prompt);
+    const parsed = JSON.parse(raw) as { correct: boolean };
+    return parsed.correct === true;
+  } catch {
+    // fallback to token overlap if judge fails
+    const answerTokens = exp.split(/\s+/).filter(t => t.length > 2);
+    if (answerTokens.length === 0) return false;
+    const matchCount = answerTokens.filter(t => gen.includes(t)).length;
+    return matchCount / answerTokens.length >= 0.5;
+  }
+}
+
+/**
+ * Call LLM for JSON judge response (with retry)
+ */
+async function callLLMForJudge(prompt: string): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY ?? '';
+  const baseUrl = (process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/$/, '');
+  const model = process.env.UNIMEMORY_LLM_MODEL ?? 'gpt-4o-mini';
+
+  const maxRetries = 5;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0,
+          max_tokens: 20,
+          response_format: { type: 'json_object' },
+        }),
+      });
+      if (res.status === 429 || res.status === 499) {
+        const retryAfter = res.headers.get('retry-after');
+        const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : Math.min(2000 * Math.pow(2, attempt), 30000);
+        lastErr = new Error(`LLM judge ${res.status}`);
+        await new Promise(r => setTimeout(r, waitMs));
+        continue;
+      }
+      if (!res.ok) throw new Error(`LLM judge ${res.status}: ${await res.text()}`);
+      const data = await res.json() as { choices: { message: { content: string } }[] };
+      return data.choices[0].message.content.trim();
+    } catch (err) {
+      lastErr = err;
+      const msg = (err as Error).message ?? '';
+      if (!msg.includes('429') && !msg.includes('499')) throw err;
+      await new Promise(r => setTimeout(r, Math.min(2000 * Math.pow(2, attempt), 30000)));
+    }
+  }
+  throw lastErr;
+}
+
+/**
  * Call LLM for open-ended answer generation
  * Uses retry with exponential backoff for 429/499
  */
@@ -215,20 +292,9 @@ If the answer cannot be determined from the context, respond with "None".
 Respond with ONLY the answer (a few words), no explanation.`;
 
       const llmAnswer = await callLLMForAnswer(prompt);
-      const expected = String(qa.answer ?? '').toLowerCase().trim();
-      const generated = llmAnswer.toLowerCase().trim();
-
-      // adversarial: expected is 'none'
-      if (expected === 'none') {
-        const correct = generated.includes('none') || generated === 'n/a' || generated === '';
-        return { correct, retrievalMs };
-      }
-
-      // For other categories: token overlap
-      const answerTokens = expected.split(/\s+/).filter(t => t.length > 2);
-      if (answerTokens.length === 0) return { correct: false, retrievalMs };
-      const matchCount = answerTokens.filter(t => generated.includes(t)).length;
-      return { correct: matchCount / answerTokens.length >= 0.5, retrievalMs };
+      // Use semantic judge instead of token overlap for fair evaluation
+      const correct = await judgeAnswer(String(qa.answer ?? ''), llmAnswer, qa.question);
+      return { correct, retrievalMs };
     } catch (err) {
       console.warn(`    [evaluateQA] LLM answer failed: ${(err as Error).message}, falling back to token match`);
     }
