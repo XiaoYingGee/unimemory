@@ -2,7 +2,7 @@
 
 **作者**: 雪琪 ❄️ (PM) · 金瓶儿 🍾 (QA 审计) · 小白 🦊 (调度)
 **日期**: 2026-04-18
-**版本**: v2（v1 因 open_domain 反向处置错误，被瓶儿一刀拦下重写）
+**版本**: v2.2（v2.1 的 L0.5 「代码先 merge」被 PR 实际状态 [BLOCKED] 覆盖，回到「整 PR 阻塞」路径）
 **协议**: 按 `docs/p3/benchmark-protocol.md` v0.3 三规则审
 
 ---
@@ -61,10 +61,11 @@
 | 层 | 工作 | 通过条件 | ETA |
 |---|---|---|---|
 | L0 | OPT-3 events 关闭 | ✅ 已确认 | done |
-| **L0.5** | **OPT-2 代码 merge（default OFF + opt-in flag）** | PR #21 review 通过 | 立刻 |
 | **L1** | **OPT-2.5 救 open_domain** | 瓶儿验收 spec 4 条全过 | 1-2h（明天瑶儿） |
-| L2 | default 翻 ON | L1 通过 | L1 完成后 |
+| L2 | OPT-2 + OPT-2.5 合并 merge（default ON） | PR #21 解除 BLOCKED | L1 完成后 |
 | L3 | OPT-3 Step B (Zep/Graphiti bi-temporal) | 见 §5 DoD | 1 周 |
+
+> 节奏说明：PR #21 当前状态 = `[blocked-on-opt-2.5]`，代码不先 merge。之前 v2.1 提过 L0.5「代码先 merge default OFF + opt-in flag」也是合法路线，两者对最终质量等价；本版以实际 PR 状态为准，取「整 PR 阻塞」路径。
 
 ### L1 OPT-2.5 验收 spec（瓶儿划红线，全收）
 
