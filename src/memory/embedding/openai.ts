@@ -31,20 +31,34 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   }
 
   async generate(text: string): Promise<number[]> {
-    try {
-      const response = await this.client.embeddings.create({
-        model: this.model,
-        input: [text],
-        encoding_format: 'float',
-        dimensions: this.dimensions,
-      });
-      return response.data[0].embedding;
-    } catch (err) {
-      throw new EmbeddingError(
-        `OpenAI embedding failed: ${(err as Error).message}`,
-        'openai',
-        err
-      );
+    const maxRetries = 5;
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await this.client.embeddings.create({
+          model: this.model,
+          input: [text],
+          encoding_format: 'float',
+          dimensions: this.dimensions,
+        });
+        return response.data[0].embedding;
+      } catch (err) {
+        lastErr = err;
+        const msg = (err as Error).message ?? '';
+        // 429 rate limit 或 499 proxy timeout: exponential backoff
+        if (msg.includes('429') || msg.includes('499') || msg.includes('rate limit')) {
+          const waitMs = Math.min(2000 * Math.pow(2, attempt), 30000);
+          await new Promise(r => setTimeout(r, waitMs));
+          continue;
+        }
+        // 其他错误直接抛
+        break;
+      }
     }
+    throw new EmbeddingError(
+      `OpenAI embedding failed: ${(lastErr as Error).message}`,
+      'openai',
+      lastErr
+    );
   }
 }

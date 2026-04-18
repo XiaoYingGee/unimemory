@@ -39,38 +39,58 @@ export class CompatibleEmbeddingProvider implements EmbeddingProvider {
 
   async generate(text: string): Promise<number[]> {
     const url = `${this.baseUrl}/embeddings`;
+    const maxRetries = 5;
+    let lastErr: unknown;
 
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
-        },
-        body: JSON.stringify({
-          model: this.model,
-          input: [text],
-          encoding_format: 'float',
-        }),
-      });
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            model: this.model,
+            input: [text],
+            encoding_format: 'float',
+          }),
+        });
 
-      if (!res.ok) {
-        const body = await res.text();
-        throw new EmbeddingError(
-          `Compatible provider HTTP ${res.status}: ${body}`,
-          'compatible'
-        );
+        // 429 rate limit: exponential backoff
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('retry-after');
+          const waitMs = retryAfter
+            ? parseInt(retryAfter) * 1000
+            : Math.min(2000 * Math.pow(2, attempt), 30000);
+          lastErr = new EmbeddingError(`Compatible provider HTTP 429`, 'compatible');
+          await new Promise(r => setTimeout(r, waitMs));
+          continue;
+        }
+
+        if (!res.ok) {
+          const body = await res.text();
+          throw new EmbeddingError(
+            `Compatible provider HTTP ${res.status}: ${body}`,
+            'compatible'
+          );
+        }
+
+        const data = await res.json() as { data: { embedding: number[] }[] };
+        return data.data[0].embedding;
+      } catch (err) {
+        if (err instanceof EmbeddingError && !(err.message.includes('429'))) throw err;
+        lastErr = err;
+        const waitMs = Math.min(2000 * Math.pow(2, attempt), 30000);
+        await new Promise(r => setTimeout(r, waitMs));
       }
-
-      const data = await res.json() as { data: { embedding: number[] }[] };
-      return data.data[0].embedding;
-    } catch (err) {
-      if (err instanceof EmbeddingError) throw err;
-      throw new EmbeddingError(
-        `Compatible provider request failed: ${(err as Error).message}`,
-        'compatible',
-        err
-      );
     }
+
+    if (lastErr instanceof EmbeddingError) throw lastErr;
+    throw new EmbeddingError(
+      `Compatible provider request failed: ${(lastErr as Error).message}`,
+      'compatible',
+      lastErr
+    );
   }
 }
