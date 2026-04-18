@@ -128,6 +128,7 @@ VERDICT: WRONG`;
 
   const raw = await callLLM(prompt, true); // judge: use gpt-5.4
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const verdictLine = [...lines].reverse().find(l => l.toUpperCase().startsWith('VERDICT:'));
   const verdict = verdictLine ? verdictLine.toUpperCase().includes('CORRECT') : false;
   return { verdict, raw };
 }
