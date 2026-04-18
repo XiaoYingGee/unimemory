@@ -1,0 +1,103 @@
+{
+  "results": [
+    {
+      "conversation_id": "conv-26",
+      "total_qa": 199,
+      "correct": 56,
+      "accuracy": 0.2814070351758794,
+      "by_category": {
+        "multi_hop": {
+          "total": 37,
+          "correct": 2,
+          "accuracy": 0.05405405405405406
+        },
+        "temporal": {
+          "total": 13,
+          "correct": 0,
+          "accuracy": 0
+        },
+        "single_hop": {
+          "total": 32,
+          "correct": 6,
+          "accuracy": 0.1875
+        },
+        "open_domain": {
+          "total": 70,
+          "correct": 48,
+          "accuracy": 0.6857142857142857
+        },
+        "adversarial": {
+          "total": 47,
+          "correct": 0,
+          "accuracy": 0
+        }
+      },
+      "avg_retrieval_ms": 1132.5778894472362
+    },
+    {
+      "conversation_id": "conv-30",
+      "total_qa": 105,
+      "correct": 30,
+      "accuracy": 0.2857142857142857,
+      "by_category": {
+        "multi_hop": {
+          "total": 26,
+          "correct": 1,
+          "accuracy": 0.038461538461538464
+        },
+        "open_domain": {
+          "total": 44,
+          "correct": 27,
+          "accuracy": 0.6136363636363636
+        },
+        "single_hop": {
+          "total": 11,
+          "correct": 2,
+          "accuracy": 0.18181818181818182
+        },
+        "adversarial": {
+          "total": 24,
+          "correct": 0,
+          "accuracy": 0
+        }
+      },
+      "avg_retrieval_ms": 1149.142857142857
+    },
+    {
+      "conversation_id": "conv-41",
+      "total_qa": 193,
+      "correct": 67,
+      "accuracy": 0.3471502590673575,
+      "by_category": {
+        "multi_hop": {
+          "total": 27,
+          "correct": 1,
+          "accuracy": 0.037037037037037035
+        },
+        "single_hop": {
+          "total": 31,
+          "correct": 9,
+          "accuracy": 0.2903225806451613
+        },
+        "temporal": {
+          "total": 8,
+          "correct": 0,
+          "accuracy": 0
+        },
+        "open_domain": {
+          "total": 86,
+          "correct": 57,
+          "accuracy": 0.6627906976744186
+        },
+        "adversarial": {
+          "total": 41,
+          "correct": 0,
+          "accuracy": 0
+        }
+      },
+      "avg_retrieval_ms": 1070.979274611399
+    }
+  ],
+  "topK": 20,
+  "timestamp": "2026-04-17T08:15:32.922Z"
+}

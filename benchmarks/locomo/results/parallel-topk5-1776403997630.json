@@ -1,0 +1,30 @@
+{
+  "results": [
+    {
+      "conversation_id": "conv-26",
+      "total_qa": 199,
+      "correct": 0,
+      "accuracy": 0,
+      "by_category": {
+        "multi_hop": {
+          "total": 2,
+          "correct": 0,
+          "accuracy": 0
+        },
+        "temporal": {
+          "total": 1,
+          "correct": 0,
+          "accuracy": 0
+        },
+        "single_hop": {
+          "total": 1,
+          "correct": 0,
+          "accuracy": 0
+        }
+      },
+      "avg_retrieval_ms": 48.11557788944724
+    }
+  ],
+  "topK": 5,
+  "timestamp": "2026-04-17T05:33:17.630Z"
+}
