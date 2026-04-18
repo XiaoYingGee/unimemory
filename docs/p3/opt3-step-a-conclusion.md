@@ -1,23 +1,26 @@
-# OPT-3 Step A 关闭决策书
+# OPT-3 Step A 关闭决策书 v2
 
-**作者**: 雪琪 ❄️
+**作者**: 雪琪 ❄️ (PM) · 金瓶儿 🍾 (QA 审计) · 小白 🦊 (调度)
 **日期**: 2026-04-18
-**协议**: 按 `docs/p3/benchmark-protocol.md` v0.2 三规则审
+**版本**: v2（v1 因 open_domain 反向处置错误，被瓶儿一刀拦下重写）
+**协议**: 按 `docs/p3/benchmark-protocol.md` v0.3 三规则审
 
 ---
 
 ## TL;DR
 
-| 决定 | 状态 |
-|---|---|
-| OPT-2 LLM 回答层 | ✅ **真信号 +14.6pp**，锁为 default |
-| OPT-3 Step A（事件索引） | ❌ **关闭**，C vs B 全类目噪声内 |
-| open_domain LLM 副作用 | ⚠️ **弱信号 -10pp**，记 follow-up 不阻塞 |
-| OPT-3 Step B（Zep/Graphiti bi-temporal） | ✅ **启动**，目标救 temporal + multi_hop |
+| 决定 | 状态 | 备注 |
+|---|---|---|
+| OPT-3 Step A（事件索引） | ❌ **关闭** | C vs B 全类目噪声，假设证伪 |
+| OPT-2 LLM 回答层 | ⏸️ **条件接受**，**不直接 merge** | open_domain 反向阻塞 |
+| **OPT-2.5（救 open_domain）** | 🎯 **新增 L1，merge 前置阻塞** | 瓶儿验收 spec 4 条全过才解锁 |
+| OPT-3 Step B（Zep/Graphiti） | ⏸️ **后置**，OPT-2.5 通过后启动 |
+
+**v1 决策的错**：把 open_domain -10pp 当作"弱信号 follow-up"放走 = 把模糊地带往**松**的方向定标。瓶儿那刀拦得对——三 conv 同向 -10pp 是稳定副作用，CI 重叠只是 n 不够大叫不出来，不代表问题不存在。
 
 ---
 
-## 1. Wave 1 真相数据（698 题 / 3 conv / sample=1 单跑 × 3 conv）
+## 1. Wave 1 真相数据（698 题 / 3 conv / sample=1×3 conv）
 
 | 类别 | n | A baseline | B OPT-2 | C OPT-3 events |
 |---|---|---|---|---|
@@ -28,7 +31,7 @@
 | open_domain | 291 | **63.6%** | 53.6% | 52.9% |
 | adversarial | 165 | 0.0% | 68.5% | 67.3% |
 
-（中括号 = Wilson 95% CI；数据由瓶儿 Wilson 工具复核）
+（中括号 = Wilson 95% CI；瓶儿独立复核签字）
 
 ---
 
@@ -39,96 +42,96 @@
 | 类别 | Δ | CI 不重叠 | \|Δ\|≥√n | 同向 | 判定 |
 |---|---|---|---|---|---|
 | **overall** | **+14.6pp** | ✅ | ✅ (102≥27) | ✅ | **✅ 真信号** |
-| adversarial | +68.5pp | ✅ | ✅ | ✅ | ✅ 真信号 |
-| open_domain | **-10.0pp** | ❌ | ✅ | ✅ | **⚠️ 弱信号（退步）** |
+| adversarial | +68.5pp | ✅ | ✅ | ✅ | ✅ 真信号（含 prompt artifact 嫌疑） |
+| **open_domain** | **-10.0pp** | ❌ | ✅ (29≥18) | ✅ | **🚨 反向阻塞**（按 §4.3 新规则） |
 | single_hop | +5.7pp | ❌ | ❌ | ❌ | ❌ 噪声 |
 | multi_hop | +9.1pp | ❌ | ❌ | ✅ | ❌ 噪声 |
 | temporal | +7.9pp | ❌ | ❌ | ✅ | ❌ 噪声 |
 
 ### C (OPT-3 events) vs B (OPT-2)
 
-| 类别 | Δ | CI | √n | 同向 | 判定 |
-|---|---|---|---|---|---|
-| **所有类目** | -5.3 ~ +0.7pp | ❌ | ❌ | ✅ | **❌ 全噪声** |
-
-C vs B 对**任何类目都没有真信号**——事件索引在 OPT-2 LLM 回答层基础上**没有可观测的增益**。
-
-### C (OPT-3 events) vs A (baseline)
-
-数字结构跟 B vs A 几乎一致（overall +13pp 真信号、adversarial +67pp 真信号、open_domain 弱信号退步），证明 **C 的胜利全部来自共享的 LLM 层，与 events 索引无关**。
+所有类目全噪声 → C 没有可观测增益，事件索引假设证伪。
 
 ---
 
-## 3. 核心结论
+## 3. 决策树（v2 修订）
 
-### ✅ 收获 1：OPT-2 LLM 层是真胜利
+| 层 | 工作 | 通过条件 | ETA |
+|---|---|---|---|
+| L0 | OPT-3 events 关闭 | ✅ 已确认 | done |
+| **L1** | **OPT-2.5 救 open_domain** | 瓶儿验收 spec 4 条全过 | 1-2h（明天瑶儿） |
+| L2 | OPT-2 + 2.5 合并锁 default | merge PR #21 | L1 完成后 |
+| L3 | OPT-3 Step B (Zep/Graphiti bi-temporal) | 见 §5 DoD | 1 周 |
 
-- overall +14.6pp 在三规则下全过
-- adversarial +68pp 真胜利但要警惕 prompt artifact（已记 PR #21）
-- **决定**：OPT-2 LLM 回答层 **锁为 default**，merge PR
+### L1 OPT-2.5 验收 spec（瓶儿划红线，全收）
 
-### ❌ 收获 2：OPT-3 events 假设证伪
+**目标**：在 protocol §4 三规则下，证明 OPT-2.5 修复了 open_domain 反向。
 
-- C vs B 全类目噪声 = 即使是 LoCoMo 论文金标准的 event_summary，叠加在 LLM 层之上**也没有可观测增益**
-- 这正是当初我说的"**论文上限测试**"——上限就是 0
-- 假设证伪：「事件粒度索引」对当前 retrieval 路径**不是有效杠杆**
-- **决定**：OPT-3 Step A **关闭**，不进 prompt 调试（不存在 4h 救场空间）
+**必须全满足（缺一不算通过）**：
 
-### ⚠️ 收获 3：open_domain 弱信号退步（-10pp）
+1. **open_domain 不再反向**：B(2.5) vs A baseline 在 open_domain 上 Δpp ≥ 0；不能用 `|Δ|<√n=18` 的小退步糊弄
+2. **B(2.5) vs B(2.0) 在 open_domain 上是真信号**：三规则全过（CI 不重叠 + |Δ|≥18 题 + 三 conv 同向涨）
+3. **不破坏其他类**：adversarial / multi_hop / temporal / single_hop 任一出现「真反向信号」直接打回
+4. **重跑同 conv 集**（conv-49/42/43）+ 同 commit 对照（B 用 `0e32f3e`）+ 按 protocol v0.3 sample=3
 
-- B 和 C 都比 baseline 在 open_domain 上**低 10pp**，三 conv 同向，幅度足
-- CI 仍重叠所以是"弱信号"不是"真信号"，但**方向稳定**值得查
-- 假设：LLM 层把召回的 chunks 概括成短答案，丢失了原 chunks 里的事实碎片，open_domain 题（事实型）受伤
-- **决定**：记入 `docs/p3/followups.md`，OPT-4 / OPT-5 阶段查 prompt + few-shot，**不阻塞 OPT-3 Step B 启动**
+**调试假设清单**（碧瑶明天用，按优先级排）：
+- [ ] H1：LLM 拒答阈值太严 → 修 prompt 里 "If unable to determine, respond 'None'" 触发条件，加 confidence 分级
+- [ ] H2：top_k=10 chunks 给 LLM 时语义稀释 → 试 top_k=5 看 open_domain 是否回血
+- [ ] H3：prompt 缺 open_domain few-shot → 加 1-2 个 open_domain 范例引导给具体答案
+- [ ] H4：LLM 把召回 chunks 概括成短答案丢失事实碎片 → 改 prompt 强制保留具体事实
 
-### ✅ 收获 4：协议工作正常
-
-protocol v0.2 三规则成功筛掉了 5 个看似涨实则噪声的 delta（B-A 的 single_hop / multi_hop / temporal 全被判噪声），救了 4h+ 错误的 prompt 调试时间。瓶儿那刀（"单 sample 决策 = 一颗骰子"）值千金。
-
----
-
-## 4. 下一步：OPT-3 Step B 启动
-
-按调研文档 `docs/p3/opt3-research.md` 的两步走，**Step A 关闭，立刻进 Step B**：
-
-### Step B = Zep / Graphiti bi-temporal graph
-
-- **目标**：救 temporal（当前 13.2%）+ multi_hop（17.2%）
-- **依赖**：起 Neo4j 容器 + Graphiti SDK（OSS Python 库）
-- **预期天花板**：参考 paper LongMemEval +18.5%
-- **时间盒**：1 周（spec / 实现 / Wave 1 验证）
-
-### Step B DoD（草拟，待三人 ACK 后入仓）
-
-| 维度 | OPT-2 baseline | Step B 目标 |
-|---|---|---|
-| temporal | 13.2% | **≥ 25%（Wilson CI 不与 OPT-2 重叠）** |
-| multi_hop | 17.2% | ≥ 25% |
-| open_domain | 53.6% | ≥ 51%（不退步 -3pp 容忍） |
-| overall | 44.4% | ≥ 47%（+3pp） |
-
-跑批必须按 protocol v0.2：sample=3 + conv-49/42/43 + Wilson 三规则。
+**优先级**：H1 → H2 → H3 → H4（按改动量从小到大，每改一个做局部回归）
 
 ---
 
-## 5. PR 标题更新建议
+## 4. open_domain 反向：根因猜想 & 数据印证
 
-```
-[merged] OPT-2 LLM Answer Layer +14.6pp validated (Wilson 3-rule)
-- OPT-3 Step A (event_summary index) deprecated: no signal vs OPT-2
-- Open follow-up: open_domain -10pp regression (weak signal)
-- Next: OPT-3 Step B (Zep/Graphiti bi-temporal)
-```
+三 conv 同向退步幅度：conv-49 -9.6 / conv-42 -12.6 / conv-43 -7.5。中等偏严重。
+
+**最可能根因**：LLM 层在 open_domain（事实型开放问题）上**过度归纳 / 拒答更频繁**，原 baseline 的 chunks 直出反而保留了答案需要的具体事实。
+
+判定方法（碧瑶 OPT-2.5 跑前先做）：
+- 抽 20 道 open_domain 错题（B 错 / A 对的）
+- 看 B 的输出是 "None" / "无法回答" 多还是 "概括过头" 多
+- 决定优先打 H1 还是 H4
 
 ---
 
-## 6. 待 ACK
+## 5. OPT-3 Step B DoD 草拟（待 ACK 入仓）
 
-1. @小白 OPT-3 Step A 关闭决定 + Step B 启动
-2. @瓶儿 数据复核签字
-3. @碧瑶 准备 Step B Spec（明天启动，今晚休息）
+| 维度 | OPT-2.5 baseline (待测) | Step B 目标 | 阻塞条件 |
+|---|---|---|---|
+| temporal | TBD（≥13.2%）| ≥ 25%（CI 与 OPT-2.5 不重叠）| 必达 |
+| multi_hop | TBD（≥17.2%）| ≥ 25% | 必达 |
+| open_domain | TBD（OPT-2.5 修复后）| **不退步 -3pp** | 阻塞 |
+| overall | TBD | ≥ 47% | 必达 |
 
-附录：本次评估基础设施沉淀
-- `docs/p3/benchmark-protocol.md` v0.2（生效）
-- `memory/lessons.md`（雪琪 workspace）：单 sample 决策教训
-- 9 个 Wave 1 results JSON（已 push 仓库）
+按 protocol v0.3 跑：sample=3 + conv-49/42/43 + Wilson 三规则 + §4.3 反向信号阻塞。
+
+---
+
+## 6. 协议升级：v0.2 → v0.3
+
+新增 §4.3「反向信号处理」，关闭"弱反向同向 = follow-up"灰色操作。详见 `docs/p3/benchmark-protocol.md` v0.3 同 commit 推送。
+
+---
+
+## 7. 沉淀
+
+### 教训
+- **PM 不能为了赶 merge 把模糊地带往松定标**——瓶儿一刀拦下，避免一个有副作用的版本被锁 default
+- 「弱信号 follow-up」是合法机制，但**反向同向 + 用户高占比题型** = 不能 follow-up
+- 协议盲点要立刻补丁，别等下次重蹈
+
+### 协议工作正常
+- protocol v0.2 三规则筛掉 5 个看似涨实则噪声的 delta
+- v0.3 §4.3 由本次冲突催生，把「反向信号阻塞」从默契升级为白纸黑字
+
+---
+
+## 8. 待 ACK
+
+1. ✅ 雪琪（PM）— 本决策书 v2
+2. ✅ 瓶儿（QA）— OPT-2.5 spec 4 条 + §4.3
+3. ⏳ 小白（调度）— 待 ACK 后改 PR #21 标题为 "OPT-2 conditional, blocked on OPT-2.5 (open_domain regression fix)"
+4. ⏳ 碧瑶（开发）— 明天进 OPT-2.5，看本决策书 §3 L1 spec
