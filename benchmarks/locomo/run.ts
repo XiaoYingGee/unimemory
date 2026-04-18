@@ -309,7 +309,7 @@ async function evaluateQA(
         top_k: topK,
         min_similarity: 0.5,
       }),
-      searchEventMemories(qa.question, `locomo-events-${conversationId}`, 5, 0.5).catch(() => []),
+      searchEventMemories(qa.question, `locomo-events-${conversationId}`, 3, 0.5).catch(() => []),
     ]);
   } catch (err) {
     console.warn(`    [evaluateQA] searchMemories failed: ${(err as Error).message}`);
