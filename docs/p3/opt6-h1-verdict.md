@@ -1,6 +1,6 @@
 # OPT-6 H1 结论文档
 
-**版本**: v0.1（PM 初评，待瓶儿 Wilson 正式盖章）
+**版本**: v0.2（措辞修正：无「胜利/breakthrough」；加 sample=2 计划；open_domain 归因澄清）
 **日期**: 2026-04-19
 **实验**: OPT-6 ADD-only 抽取层，H1（`--extract-facts` flag，gpt-4o-mini 抽取）
 **数据**: 698 题，3 conv (conv-49/42/43)，seed=42，sample=3
@@ -11,7 +11,7 @@
 
 ## 一句话结论
 
-> **OPT-6 H1 真信号成立**：overall +7.2pp（44.4%→51.6%），single_hop +16.2pp，adversarial +17.6pp，三 conv 全部同向涨。抽取层假设证实，**ADD-only LLM fact 提炼是有效改变**。
+> **OPT-6 H1 方向性信号**：overall +7.2pp（44.4%→51.6%），single_hop +16.2pp，adversarial +17.6pp，三 conv 全部同向涨。抽取层方向有效。但 overall/single_hop CI 区间重叠，**三规则未完整满足，不算「真胜利」**——需加 sample=2（conv-26+conv-48）扩大样本后由瓶儿 Wilson final 盖章。
 
 ---
 
@@ -100,7 +100,22 @@ H1 temporal 15.8%（噪声级），距 Step B DoD 目标仍有 ~9pp 缺口。**S
 
 ---
 
-## 6. 待操作
+## 6. sample=2 加跑计划
+
+**目的**：扩样本 698→1136 题，拉开 overall/single_hop CI 重叠区间，支撑 Wilson 三规则完整通过。
+
+**新增 conv 选择**（protocol P20-P80 分位带，不重复现有 conv-49/42/43）：
+
+| conv | qa 题数 | 分位 | 说明 |
+|------|--------|------|------|
+| conv-26 | 199 | P50 | 中位数，平衡样本 |
+| conv-48 | 239 | P70 | P70 区间，覆盖较长 conv |
+
+加跑后：n=1136，√n=33.7（overall 判定阈值从 27 升至 34 题）
+
+**注**：加跑必须同 B(2.0) baseline 在相同 conv-26/conv-48 上补跑，才能做公平对比。碧瑶需同时跑 H1 + B(2.0) 两个版本在两个新 conv 上。
+
+## 7. 待操作
 
 - [ ] 瓶儿 Wilson H1 正式验收（5 红线盖章）
 - [ ] 瓶儿盖章后：碧瑶 PR 起草（OPT-6 H1，含 `extract-facts` + DB migration）
