@@ -1,114 +1,151 @@
-# OPT-6 Spec — mem0 ADD-only 抽取层
+# OPT-6 立项 Spec
 
-**作者**: 碧瑶 🌸 (实现) · 等雪琪 ❄️ (PM vision + DoD) · 等瓶儿 🍾 (QA 验收)
+**版本**: v0.1（PM 愿景 + DoD，backend 实现细节待碧瑶补全）
+**状态**: 🟡 起草中，待碧瑶 + 瓶儿 ACK
 **日期**: 2026-04-19
-**前置**: OPT-2.5 H1-H4 全证伪（prompt 调优路线失败），benchmark B(2.0) 44.4% 仍是最佳
-**协议**: 严格按 `docs/p3/benchmark-protocol.md` v0.3
+**paper_ref**: arXiv:2504.19413 §2.1（mem0 新算法）+ mem0 blog 2026-04-16（ADD-only 抽取详解）
+**repo_ref**: github.com/mem0ai/mem0（开源 SDK，MIT）
 
 ---
 
-## 1. 为什么做 OPT-6
+## 为什么做（背景）
 
-### 根因（来自 docs/p3/why-they-win.md）
+OPT-2.5 四个 prompt 假设全部证伪（见 `docs/p3/opt2.5-final.md`）。
 
-mem0 overall 91.6% vs 我们 44.4% 的最大 gap 在**抽取层**：
+根因诊断（`docs/p3/why-they-win.md` §1.5）：
 
-| 层 | 我们现状 | mem0 做法 | 差距 |
-|---|---|---|---|
-| 抽取 | 存原始对话片段（chunking） | LLM 提炼 fact（ADD-only） | ⭐⭐⭐ 核心 gap |
-| 索引 | pgvector cosine | vector + BM25 + entity | ⭐⭐ |
-| 时序 | 无 | bi-temporal graph | ⭐⭐ |
+> UniMemory 写入的是**原文 content**，不是**结构化 fact**。LLM prompt 再强，也无法从劣质 memory 读出正确时序信息。
 
-**根本原因**：我们存的是原文切片，信息密度低；mem0 存的是 LLM 提炼的 fact，检索时精确匹配度高。
-
-### 论文/代码引用（呆子心法强制字段）
-
-- **paper_ref**: LoCoMo paper §4.1 (mem0 system description); mem0 repo `mem0/configs/prompts.py` `ADDITIVE_EXTRACTION_PROMPT`
-- **repo_ref**: https://github.com/mem0ai/mem0/blob/main/mem0/memory/main.py (ADD operation logic)
-- **核心 prompt**: mem0 使用 `ADDITIVE_EXTRACTION_PROMPT` 从对话中提炼 fact list，每条 fact 独立存储
+mem0 在 LoCoMo 从 66.9%（旧）跳至 91.6%（新），最关键改动是**抽取层改成 ADD-only 单程 LLM 提炼 fact**。这是 OPT-6 要抄的目标。
 
 ---
 
-## 2. 实现方案
+## 核心改变（抄什么）
 
-### ADD-only 抽取流程
-
-```
-对话 turn → LLM 提炼 facts → 每条 fact embed → pgvector 存储
-```
-
-vs 现在：
-```
-对话 turn → 切片 → embed → pgvector 存储
-```
-
-### 核心改动
-
-**Step 1**: 修改 `src/memory/service.ts` 的 `writeMemory` 流程：
-- 在写入前调用 `extractFacts(content: string): Promise<string[]>`
-- 对每条 fact 分别 embed + 存储（agent_id/scope 不变）
-- `extractFacts` 使用如下 prompt（仿 mem0 ADDITIVE_EXTRACTION_PROMPT）：
+### mem0 ADD-only 抽取（paper §2.1）
 
 ```
-From the following conversation excerpt, extract key facts as a list.
-Each fact should be:
-- A standalone, concise statement (one sentence)
-- About a specific person, event, preference, or relationship
-- Factual, not interpretive
+当前 UniMemory 写入路径:
+  用户输入原文 → 安全过滤 → embedding → pgvector INSERT
 
-Conversation:
-{content}
-
-Output a JSON array of fact strings. Example:
-["Sarah works as a software engineer.", "Jake enjoys rock climbing on weekends."]
+OPT-6 目标写入路径:
+  用户输入原文 → 安全过滤 → [NEW] LLM 单程抽取 fact list → 
+    对每条 fact: embedding → pgvector INSERT（ADD-only，不覆盖旧 fact）
 ```
 
-**Step 2**: ingest 流程加 `--extract-facts` flag（benchmark 专用，不影响生产）
+**ADD-only 含义**：
+- 旧有 fact 遇到新信息时**不删、不覆盖**，新 fact 作为独立记录新增
+- "我从纽约搬到旧金山" → 存两条 fact：`lived_in: New York (until 2026-04)` + `lives_in: San Francisco (from 2026-04)`
+- 旧 fact 的 `valid_until` 字段打上时间戳（为 Step B bi-temporal 做铺垫）
 
-**Step 3**: benchmark `ingest-events.js` 改用 fact 抽取替代原文存储
-
-### 不破坏现有接口
-
-- `writeMemory` 接口签名不变，加可选 `extractFacts?: boolean` 参数
-- 默认 `false`（不影响生产），benchmark 跑批时传 `true`
+**agent facts 一等公民**（同步实现）：
+- agent 的确认/推荐类输出（"我已为你预订了 3 月 3 日的航班"）同等存储
+- 当前系统忽略 agent 侧输出
 
 ---
 
-## 3. benchmark_target（呆子心法强制字段）
+## DoD（benchmark_target）
 
-| 类别 | A baseline | B(2.0) 现最佳 | OPT-6 目标 |
-|---|---|---|---|
-| overall | 29.8% | 44.4% | **≥ 52%** |
-| single_hop | 31.0% | 31.0% | **≥ 45%** |
-| multi_hop | 26.3% | 26.3% | **≥ 35%** |
-| open_domain | 63.6% | 53.6% | **≥ 63%** (至少回到 baseline) |
-| adversarial | 0% | 68.5% | **≥ 65%** (不退步) |
-| temporal | 13.2% | 13.2% | **≥ 20%** |
+### 必过（阻塞 merge）——三规则约束
 
----
+所有 Δ 判定必须走 protocol §4 Wilson 三规则：
 
-## 4. 实现步骤
+| 指标 | 目标 | 当前 B(2.0) | 说明 |
+|------|------|------------|------|
+| overall | ≥ **50%** | 44.4% | +5.6pp 需真信号（|Δ|≥√698≈26.4题，CI 不重叠，三 conv 同向）|
+| single_hop | ≥ **28%** | 31.0% | 不退步（OPT-2 此类未改变，OPT-6 应回升）|
+| temporal | ≥ **15%** | 13.2% | 至少不退步，有改善最好（图层前的先决条件）|
+| open_domain | ≥ **53%** | 53.6% | 不退步（OPT-2 退步已记，OPT-6 不能再伤）|
+| adversarial | ≥ **65%** | 68.5% | 不崩（LLM 拒答能力不被抽取层干扰）|
 
-### Step A（~2h）：`extractFacts` 函数 + 单测
-- 实现 `extractFacts(content, llmClient)` 
-- 单测：给一段对话，验 facts 非空、每条 < 100 chars
+### 期望（不阻塞，锦上添花）
 
-### Step B（~1h）：ingest 流程接入
-- `benchmarks/locomo/run.ts` 加 `--extract-facts` flag
-- ingest 时先 extractFacts，再分别 writeMemory
-
-### Step C（~1h）：smoke test + 跑批
-- 先 `--sample=1 --conversation-id=conv-49` smoke test
-- 无异常后跑 sample=3 (conv-49/42/43) A/B 对比
+- multi_hop ≥ 28%（实体关系更清晰后自然改善）
+- 抽取层延迟 p95 ≤ 2s（单程 LLM call，可接受）
 
 ---
 
-## 5. 待雪琪补充
+## 实验设计
 
-- [ ] PM 愿景段落
-- [ ] DoD 红线（OPT-6 pass 条件，瓶儿来划）
-- [ ] 协议变更说明（如有）
+- **对照**: B(2.0) OPT-2 baseline（commit `0e32f3e`）
+- **conv 集**: conv-49 / conv-42 / conv-43（固定）
+- **seed**: 42
+- **sample**: 3
+- **judge**: gpt-5 + CoT v3
+- **generator**: gpt-4o-mini（抽取层 LLM 可另选，见实现说明）
+
+### 实验分支
+
+| 假设 | 内容 | 优先级 |
+|------|------|--------|
+| H1 | ADD-only 抽取（默认 LLM = gpt-4o-mini） | 必跑 |
+| H2 | ADD-only + 旧 fact valid_until 打标（bi-temporal 铺垫）| 次选 |
+| H3 | ADD-only + entity tags 提取（OPT-7 铺垫）| 次选 |
+
+> 至少跑 H1 取得 baseline；H2/H3 看碧瑶时间
 
 ---
 
-_实现优先选「论文/SOTA repo 已验证」的方案。Benchmark 说了算。_
+## 实现说明（PM 视角，碧瑶补细节）
+
+### 需要的 LLM prompt（抽取层）
+
+参考 mem0 blog §"Single-pass, ADD-only extraction"：
+
+```
+系统：你是一个记忆提炼模型。给定一段对话，提炼出关键事实列表。
+规则：
+1. 每条 fact 独立、完整、可验证（不依赖其他 fact 才能理解）
+2. 包含时间信息（如果有）
+3. 同时提炼 user 和 assistant 的事实（agent facts 一等公民）
+4. 只输出新 fact（ADD-only），不判断是否跟已有 memory 冲突
+输出：JSON array，每项 {content: string, entity_tags: string[], temporal_hint: string|null}
+```
+
+### DB schema 变更
+
+```sql
+-- 现有 memories 表新增字段：
+ALTER TABLE memories ADD COLUMN IF NOT EXISTS valid_from TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE memories ADD COLUMN IF NOT EXISTS valid_until TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE memories ADD COLUMN IF NOT EXISTS extracted_from TEXT; -- 原始 content hash
+ALTER TABLE memories ADD COLUMN IF NOT EXISTS fact_source TEXT DEFAULT 'user'; -- 'user'|'agent'
+```
+
+### 写入流程变更（`src/memory/service.ts`）
+
+```typescript
+// 新增 extractFacts() 函数，在 writeMemory() 前调用
+async function extractFacts(rawContent: string): Promise<FactItem[]>
+// FactItem: {content, entity_tags, temporal_hint, fact_source}
+
+// writeMemory 改为：对每条 fact 分别 embedding + INSERT（不 UPSERT）
+```
+
+---
+
+## 风险
+
+| 风险 | 等级 | 缓解 |
+|------|------|------|
+| 写入延迟增加（+LLM call）| 🟡 中 | gpt-4o-mini 单次 < 500ms；异步写入可降感知 |
+| 抽取质量差（hallucination）| 🟡 中 | 跑 benchmark 验证；OPT-6 DoD 红线把守 |
+| 存储量膨胀（ADD-only 不删）| 🟢 低 | pgvector 可承受；phase 后期可加 GC 策略 |
+| adversarial 受影响 | 🟡 中 | DoD 红线 adversarial ≥ 65% 把守 |
+
+---
+
+## 时间线（草稿）
+
+| 里程碑 | 负责 | ETA |
+|--------|------|-----|
+| spec v0.1 PM 愿景完成 | 雪琪 | ✅ 今晚 |
+| spec v0.2 实现细节补全 | 碧瑶 | 今晚/明早 |
+| 瓶儿 ACK spec | 瓶儿 | spec v0.2 后 |
+| H1 跑批启动 | 碧瑶 | spec ACK 后 |
+| H1 结果 + 雪琪验收 | 雪琪 | H1 完成后 |
+
+---
+
+**paper_ref**: arXiv:2504.19413 §2.1
+**benchmark_target**: overall ≥ 50%（Wilson 三规则，698 题）
