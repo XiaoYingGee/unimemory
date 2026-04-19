@@ -231,14 +231,57 @@ async function runWithConcurrency<T>(
 /**
  * Ingest a conversation into UniMemory.
  */
-async function ingestConversation(conv: LoCoMoConversation): Promise<void> {
+async function ingestConversation(conv: LoCoMoConversation, extractFactsMode: boolean = false): Promise<void> {
   const sessions = new Map<number, LoCoMoTurn[]>();
   for (const turn of conv.turns) {
     if (!sessions.has(turn.session_id)) sessions.set(turn.session_id, []);
     sessions.get(turn.session_id)!.push(turn);
   }
 
+  // OPT-6: import extractFacts lazily
+  let extractFactsFn: ((content: string, llm: any) => Promise<string[]>) | null = null;
+  let llmClient: any = null;
+  if (extractFactsMode) {
+    const { extractFacts } = await import('./extract-facts');
+    const OpenAI = (await import('openai')).default;
+    llmClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY ?? 'sk-xxx',
+      baseURL: process.env.OPENAI_BASE_URL,
+    });
+    extractFactsFn = extractFacts;
+  }
+
   for (const [sessionId, turns] of sessions) {
+    // OPT-6: accumulate session text, extract facts per session
+    if (extractFactsMode && extractFactsFn && llmClient) {
+      const sessionText = turns
+        .filter(t => t.text && t.text.trim().length >= 10)
+        .map(t => `${t.speaker}: ${t.text}`)
+        .join('\n');
+      if (sessionText.length === 0) continue;
+
+      const facts = await extractFactsFn(sessionText, llmClient);
+      const factsToWrite = facts.length > 0 ? facts : [sessionText]; // fallback to raw
+
+      for (const fact of factsToWrite) {
+        const req: WriteMemoryRequest = {
+          content: fact,
+          agent_id: `locomo-${conv.conversation_id}`,
+          scope: 'project',
+          project_id: `locomo-${conv.conversation_id}`,
+          memory_type: 'fact',
+          source_type: 'confirmed',
+          confidence: 0.9,
+          importance_score: 0.7,
+          entity_tags: [`session:${sessionId}`, 'opt6:extracted'],
+          source_context: `LoCoMo session ${sessionId} (extracted)`,
+          skipConflictCheck: true,
+        };
+        await writeMemory(req);
+      }
+      continue;
+    }
+
     for (const turn of turns) {
       if (!turn.text || turn.text.trim().length < 10) continue;
 
@@ -419,11 +462,12 @@ async function evaluateConversationQAs(
  */
 async function ingestConversationsParallel(
   conversations: LoCoMoConversation[],
-  concurrency: number
+  concurrency: number,
+  extractFactsMode: boolean = false
 ): Promise<void> {
   const tasks = conversations.map((conv) => async () => {
     try {
-      await ingestConversation(conv);
+      await ingestConversation(conv, extractFactsMode);
     } catch (err) {
       console.error(`  Ingestion failed for ${conv.conversation_id}:`, err);
     }
@@ -442,8 +486,9 @@ async function runBenchmark(options: {
   conversationId?: string;
   useLLM?: boolean;
   useEvents?: boolean;
+  extractFactsMode?: boolean;
 }): Promise<BenchmarkResult[]> {
-  const { dataPath, sampleSize, topK = 5, concurrency = 3, conversationId, useLLM = false, useEvents = true } = options;
+  const { dataPath, sampleSize, topK = 5, concurrency = 3, conversationId, useLLM = false, useEvents = true, extractFactsMode = false } = options;
 
   const rawData: any[] = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
 
@@ -496,7 +541,7 @@ async function runBenchmark(options: {
     for (const conv of batch) {
       console.log(`  Ingesting ${conv.conversation_id} (${conv.turns.length} turns)...`);
     }
-    await ingestConversationsParallel(batch, concurrency);
+    await ingestConversationsParallel(batch, concurrency, extractFactsMode);
     for (const conv of batch) {
       console.log(`    ✓ ${conv.conversation_id} ingested`);
     }
@@ -582,6 +627,7 @@ async function main() {
 
   const useLLM = args.includes('--llm');
   const useEvents = !args.includes('--no-events');
+  const extractFactsMode = args.includes('--extract-facts');
 
   const results = await runBenchmark({
     dataPath,
@@ -591,11 +637,12 @@ async function main() {
     conversationId: convArg ? convArg.split('=')[1] : undefined,
     useLLM,
     useEvents,
+    extractFactsMode,
   });
 
   printSummary(results, topK);
 
-  const suffix = useLLM ? (useEvents ? `llm-events-topk${topK}` : `llm-topk${topK}`) : `parallel-topk${topK}`;
+  const suffix = useLLM ? (useEvents ? `llm-events-topk${topK}` : extractFactsMode ? `opt6-topk${topK}` : `llm-topk${topK}`) : `parallel-topk${topK}`;
   const outPath = path.join(__dirname, 'results', `${suffix}-${Date.now()}.json`);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify({ results, topK, useLLM, timestamp: new Date().toISOString() }, null, 2));
