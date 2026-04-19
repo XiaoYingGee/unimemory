@@ -343,23 +343,14 @@ async function evaluateQA(
       const context = eventContext
         ? `${eventContext}\n\n[Conversation excerpts]\n${chunkContext}`
         : chunkContext;
-      const prompt = `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.
-
-Here are examples of good answers:
-Q: What does Sarah do for work? A: Software engineer
-Q: Where did they go on vacation? A: Hawaii
-Q: What hobby does Jake enjoy? A: Rock climbing
-
-Context:
-${context}
-
-Question: ${qa.question}
-
-Instructions:
-- If you can find a clear answer in the context, respond with ONLY the answer (a few words).
-- If you have partial information but are not certain, give your best answer based on available context.
-- Only respond with "None" if the context contains absolutely no relevant information to answer the question.
-Respond with ONLY the answer (a few words), no explanation.`;
+      // H4: category-specific prompts
+      const isAdversarial = qa.category === 'adversarial';
+      const isOpenDomain = qa.category === 'open_domain';
+      const prompt = isAdversarial
+        ? `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.\n\nContext:\n${context}\n\nQuestion: ${qa.question}\n\nIf the answer cannot be determined from the context, respond with "None".\nRespond with ONLY the answer (a few words), no explanation.`
+        : isOpenDomain
+        ? `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.\n\nContext:\n${context}\n\nQuestion: ${qa.question}\n\nInstructions:\n- Answer based on what you find in the context.\n- Give your best answer even if uncertain; provide specific facts (names, places, activities) from the context.\n- Only respond with "None" if there is truly no relevant information.\nRespond with ONLY the answer (a few words), no explanation.`
+        : `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.\n\nContext:\n${context}\n\nQuestion: ${qa.question}\n\nIf the answer cannot be determined from the context, respond with "None".\nRespond with ONLY the answer (a few words), no explanation.`;
 
       const llmAnswer = await callLLMForAnswer(prompt);
       // Use semantic judge (CoT v3) as main metric
