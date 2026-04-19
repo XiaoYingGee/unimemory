@@ -3,7 +3,7 @@
 **版本**: v0.1（PM 愿景 + DoD，backend 实现细节待碧瑶补全）
 **状态**: 🟡 起草中，待碧瑶 + 瓶儿 ACK
 **日期**: 2026-04-19
-**paper_ref**: arXiv:2504.19413 §2.1（mem0 新算法）+ mem0 blog 2026-04-16（ADD-only 抽取详解）
+**paper_ref**: mem0 blog 2026-04-17 "Token-Efficient Memory Algorithm"（ADD-only 新算法，91.6分版本）+ arXiv:2504.19413 §2.1（论文版旧算法 71.4，基线对照）
 **repo_ref**: github.com/mem0ai/mem0（开源 SDK，MIT）
 
 ---
@@ -147,5 +147,5 @@ async function extractFacts(rawContent: string): Promise<FactItem[]>
 
 ---
 
-**paper_ref**: arXiv:2504.19413 §2.1
+**paper_ref**: mem0 blog 2026-04-17 "Token-Efficient Memory Algorithm"（ADD-only）+ arXiv:2504.19413 §2.1（论文版基线对照）
 **benchmark_target**: overall ≥ 50%（Wilson 三规则，698 题）

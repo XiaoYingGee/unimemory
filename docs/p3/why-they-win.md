@@ -23,7 +23,7 @@
 | agent facts | **一等公民**：agent 的确认/推荐 ("I've booked your flight") 同等存储 | 不存 agent 侧 |
 | 延迟 | 单程 LLM call，约减旧算法 50% 延迟 | 无专项抽取，写入快但 fact 质量低 |
 
-**paper §2.1 原文**：
+**mem0 blog 2026-04-17 原文**（ADD-only 是新算法，arXiv:2504.19413 §2.1 为旧算法 71.4 对照）：
 > "The new algorithm collapses extraction into a single LLM call that only adds. Every extracted fact becomes an independent record. When information changes, the new fact lives alongside the old one, and both survive."
 
 **根因**：我们把"用户说的一整句话"直接存进去，mem0 把"从这句话里提炼的结构化 fact"存进去。同一句"我从纽约搬到旧金山了"——我们存原文，mem0 存两条独立 fact（`lives_in: San Francisco as of 2026-04` + `previously_lived_in: New York`）。
@@ -155,5 +155,5 @@ Query
 
 ---
 
-**paper_ref**: arXiv:2504.19413 §2.1 (mem0), arXiv:2501.13956 (Zep), github.com/getzep/graphiti README
+**paper_ref**: mem0 blog 2026-04-17 "Token-Efficient Memory Algorithm"（ADD-only，91.6版）; arXiv:2504.19413 §2.1（旧算法71.4，基线对照）; arXiv:2501.13956（Zep）; github.com/getzep/graphiti README
 **benchmark_target**: OPT-6 后 overall ≥ 55%；Step B 后 temporal ≥ 25%（TBD-主人拍）
