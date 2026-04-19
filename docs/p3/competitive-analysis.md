@@ -2,7 +2,7 @@
 
 **作者**: 雪琪 ❄️
 **日期**: 2026-04-19
-**状态**: v0.1（首版，数据基于公开论文/官方 blog；非我们自跑，存在 judge/题集差异）
+**状态**: v0.2（瓶儿 review 后修正 mem0 子类别口径混淆 + 折扣估算去除）
 **目的**: 回答呆子「我们现在各层和主流实现还差多少」
 
 ---
@@ -23,7 +23,8 @@
 
 | 系统 | overall | single_hop | multi_hop | temporal | open_domain | 架构特色 | 我们差距 | 借鉴方向 |
 |---|---|---|---|---|---|---|---|---|
-| **mem0 新算法**（2026-04） | **91.6** | 92.3 | 93.3 | 76.0 | 70.2 | 单遍 ADD-only 抽取 + 多信号检索 + agent fact 一等公民 | overall -47pp | ⭐ ADD-only 抽取（避免 update 噪声）；agent fact 入库 |
+| **mem0 新算法**（2026-04, blog/research）¹ | **91.6** | 92.3 | 93.3 | 70.2 | 76.0 | 单遍 ADD-only 抽取 + 多信号检索 + agent fact 一等公民 | overall -47pp | ⭐ ADD-only 抽取（避免 update 噪声）；agent fact 入库 |
+| **mem0 旧算法**（同 blog 对照基线）¹ | 71.4 | — | — | — | — | 两遍抽取（ADD/UPDATE/DELETE） | — | — |
 | **mem0 LoCoMo 论文**（2504.19413） | ~66.9 | — | — | — | — | LLM-as-Judge 是核心，judge 提升 +26% | — | judge 路线已对齐 ✅ |
 | **Zep / Graphiti**（2501.13956） | LongMemEval 自报 SOTA | — | — | **强**（bi-temporal） | — | 时序知识图（valid_time + tx_time 双时间） | temporal -68pp（5.3% vs 推算 ≥70%）| ⭐⭐ bi-temporal 图是 temporal 类硬解，Step B 主攻 |
 | **MemGPT / Letta** | DMR 93.4（GPT-4-Turbo）| — | — | — | — | HMEM 分层（main/recall/archival）+ self-edit | 架构维度差距 | 分层冷热分离思路；不主攻 |
@@ -36,23 +37,25 @@
 
 ## 分层差距诊断
 
-### 1. overall（mem0 91.6 vs 我们 44.4，gap -47pp）
-- mem0 的 91.6 是「新算法 + 全 1540 题 + 自家 judge」，我们的 44.4 是「OPT-2 + 698 题 + gpt-5 CoT judge」——judge 严苛度不一样
-- 即使打 judge 折扣（-15pp 估），mem0 真实水位仍在 ~75，我们仍 gap **~30pp**
-- **主因**：我们缺 mem0 的 ADD-only 单遍抽取 + 多信号检索
+### 1. overall（mem0 91.6 vs 我们 44.4，名义 gap -47pp）
+- mem0 的 91.6 是「新算法 + 全 1540 题 + 自家 gpt-4o-mini judge」，我们的 44.4 是「OPT-2 + 698 题 + gpt-5 CoT judge」
+- judge 严苛度差异方向已知（gpt-5+CoT 比 gpt-4o-mini 更严），但**具体折扣无校准数据，不做估算**——v0.1 那个 "-15pp 估" 撤回
+- **真实 gap 必须等公平复测**（P3 任务），在此之前只能说「量级差距明显」
+- **可借鉴**：ADD-only 单遍抽取 + 多信号检索
 
-### 2. temporal（Zep 强 vs 我们 13.2%，gap **最大**）
+### 2. temporal（mem0 76.0 / Zep 自报 SOTA vs 我们 13.2%，gap **最大**）
+- mem0 新算法 LoCoMo temporal 76.0；Zep 在 LongMemEval temporal 类自报 SOTA（具体百分比 paper 未直接给汇总数，仅给「相对 +18.5% / 部分单项 +100%」）
 - Zep 的 bi-temporal 图（事件 valid_time + 事实 tx_time）专治时间推理
 - 我们目前**完全没有时间维度建模**，纯靠向量召回 → temporal 5-13% 是必然
-- ⭐⭐ **Step B Zep 集成 = 杠杆最大的方向**
+- ⭐⭐ **Step B Zep 集成 = 杠杆最大的方向**（即便折扣后仍是最大 gap）
 
-### 3. multi_hop（mem0 93.3 vs 我们 26.3，gap -67pp）
-- mem0 多信号检索 = 向量 + 关键词 + 图，多跳问题靠图遍历
+### 3. multi_hop（mem0 93.3 vs 我们 26.3，名义 gap -67pp）
+- mem0 多信号检索（向量 + 关键词 + 实体匹配），多跳问题靠跨片段检索
 - 我们目前单路向量 → multi_hop 必然差
 - 借鉴：Step B Graphiti 图召回顺带解掉
 
 ### 4. open_domain（mem0 70.2 vs 我们 baseline 63.6 → B 53.6 ⚠️）
-- 我们 baseline 63.6 已经接近 mem0 的 70.2（仅 -7pp），**这是相对最强的一层**
+- 我们 baseline 63.6 名义上接近 mem0 的 70.2（仅 -7pp，不计 judge 差），**这是相对最强的一层**
 - B OPT-2 退步到 53.6 = LLM 拒答阈值过严 / top_k 稀释 → OPT-2.5 H1-H4 修复
 - 修复后 baseline 水位 ≥63%，跟 mem0 差距可控
 
@@ -73,6 +76,16 @@
 | **P3** | 跨家公平复测（mem0/Zep 同 judge 同 conv） | 验证差距真实度 | 工程量大，不阻塞 |
 
 ---
+
+## 数字来源标注
+
+¹ **mem0 91.6 / 92.3 / 93.3 / 70.2 / 76.0** 来自 mem0/research 页面 + 2026-04-17 blog 「Token-Efficient Memory Algorithm」，**新算法**报告，1540 题全量 LoCoMo，gpt-4o-mini judge
+
+² **mem0 66.9** 来自 mem0 LoCoMo 论文（arxiv 2504.19413），**论文版基线算法**报告，与 ¹ 不是同一系统
+
+³ **Zep DMR 94.8 / MemGPT 35.3** 来自 Zep blog（GPT-4-Turbo），DMR ≠ LoCoMo，仅作架构能力旁证
+
+⚠️ ¹ 和 ² 是**同公司不同算法版本**，v0.1 误把它们当成「同源高低估」对照——实际上新算法 blog 自己写的对照基线是 71.4（v0.2 已补上）
 
 ## 引用
 
