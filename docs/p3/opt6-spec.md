@@ -130,6 +130,86 @@ async function extractFacts(rawContent: string): Promise<FactItem[]>
 // writeMemory 改为：对每条 fact 分别 embedding + INSERT（不 UPSERT）
 ```
 
+### C: extractFacts() 实现细节（碧瑶）
+
+```typescript
+// src/memory/extract-facts.ts
+const EXTRACT_FACTS_PROMPT = `
+From the following conversation excerpt, extract key facts as a JSON array.
+Each fact must be:
+- A standalone, concise statement (one sentence, ≤ 80 chars)
+- About a specific person, event, preference, or relationship
+- Factual, not interpretive
+- Written in third-person (e.g., "Sarah works as a software engineer.")
+
+Conversation:
+{content}
+
+Output ONLY a JSON array of strings. Example:
+["Sarah works as a software engineer.","Jake enjoys rock climbing on weekends."]
+
+If no clear facts can be extracted, return: []
+`;
+
+export async function extractFacts(
+  content: string,
+  llm: OpenAI,
+  model: string = 'gpt-4o-mini'  // D: LLM 锁死 gpt-4o-mini，与 B(2.0) 一致
+): Promise<string[]> {
+  const resp = await llm.chat.completions.create({
+    model,
+    messages: [{ role: 'user', content: EXTRACT_FACTS_PROMPT.replace('{content}', content) }],
+    max_completion_tokens: 500,
+    temperature: 0,
+  });
+  try {
+    const raw = resp.choices[0].message.content?.trim() ?? '[]';
+    const facts = JSON.parse(raw);
+    return Array.isArray(facts) ? facts.filter((f: unknown) => typeof f === 'string' && f.length > 0) : [];
+  } catch {
+    return [];  // 抽取失败 → 降级存原文（不丢数据）
+  }
+}
+```
+
+**降级策略**：extractFacts 失败时，直接存原始 content（与现有行为相同），不报错。
+
+### D: LLM 锁死
+- 抽取层模型：`gpt-4o-mini`（与 B(2.0) LLM 答案层相同）
+- 通过 `UNIMEMORY_EXTRACTION_MODEL` 环境变量覆盖（仅测试用，生产不变）
+- judge 模型：`gpt-5.4`（不变）
+
+### E: Smoke 阶段 + 回滚 Plan
+
+**Smoke 阶段（必须通过才能全量跑批）**：
+```bash
+# 1. 清库
+node -e "require('dotenv').config();..DELETE FROM memories WHERE agent_id='locomo-conv-49'"
+# 2. smoke 单 conv
+npx ts-node --transpile-only benchmarks/locomo/run.ts \
+  --conversation-id=conv-49 --top-k=10 --concurrency=3 --llm --extract-facts
+# 3. 验 facts 入库
+node -e "SELECT COUNT(*), AVG(LENGTH(content)) FROM memories WHERE agent_id='locomo-conv-49'"
+# 期望：records 数量 > 原始切片数量，avg content length < 200 chars（facts 比原文短）
+```
+
+**Smoke 通过标准**：
+- facts 总数 > 0（抽取有效）
+- avg fact 长度 < 150 chars（比原文切片短，说明真的在提炼）
+- smoke conv-49 accuracy ≥ 40%（不低于 baseline 29.8%）
+
+**回滚 Plan**（DB schema 迁移可逆）：
+```sql
+-- 回滚 schema（4 个新字段可安全 DROP）
+ALTER TABLE memories DROP COLUMN IF EXISTS valid_from;
+ALTER TABLE memories DROP COLUMN IF EXISTS valid_until;
+ALTER TABLE memories DROP COLUMN IF EXISTS extracted_from;
+ALTER TABLE memories DROP COLUMN IF EXISTS fact_source;
+-- 回滚代码：git revert afeee7c..HEAD（恢复到 B(2.0) 逻辑）
+```
+
+**回滚触发条件**：smoke 失败 OR H1 跑批中 adversarial < 50%（早停）
+
 ---
 
 ## 风险
