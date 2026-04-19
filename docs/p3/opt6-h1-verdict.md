@@ -1,114 +1,95 @@
 # OPT-6 H1 结论文档
 
-**版本**: v0.3（sample=5 final，待瓶儿 Wilson 盖章）
+**版本**: v0.4（final，瓶儿 Wilson 盖章 2026-04-19）
 **日期**: 2026-04-19
 **实验**: OPT-6 ADD-only 抽取层，H1（`--extract-facts` flag，gpt-4o-mini）
 **数据**: sample=5（conv-49/42/43/26/48），n=1136 题，seed=42
 **paper_ref**: mem0 blog 2026-04-17 "Token-Efficient Memory Algorithm"（ADD-only 新算法）
-**基准**: B(2.0) OPT-2 sample=5 同 conv（Wave 1 3 conv + 新跑 2 conv）
+**基准**: B(2.0) OPT-2 sample=5 同 conv（瓶儿对账文件列表为准）
 
 ---
 
-## 一句话结论
+## 一句话结论（瓶儿 Wilson 盖章版）
 
-> **OPT-6 H1 sample=5 多项真信号**：overall +6.4pp（CI 不重叠），single_hop +18.4pp（CI 不重叠），adversarial +13.8pp（CI 不重叠），temporal +19.7pp（CI 不重叠）。**四项同时通过 CI 不重叠 + |Δ|≥√n**，抽取层假设证实。multi_hop / open_domain 为噪声，符合预期。
-
----
-
-## 1. sample=3 vs sample=5 发现：conv 偏差纠正
-
-**重要观察**：Wave 1 选的 conv-49/42/43 对 B(2.0) 偏低（B overall 44.4%），新 conv-26/48 对 B 偏高（49.2% / 51.0%）。sample=5 后 B(2.0) 基准从 44.4% 升至 46.0%，OPT-6 vs B(2.0) 真实差距从 +7.2pp 收敛至 +6.4pp——**这是更真实的数字**。
-
-| conv | B(2.0) overall | OPT-6 overall | Δ |
-|------|---------------|---------------|---|
-| conv-49 | 39.3% | 51.0% | +11.7pp |
-| conv-42 | 45.0% | 52.7% | +7.7pp |
-| conv-43 | 44.6% | 50.8% | +6.2pp |
-| conv-26（新）| 49.2% | 50.8% | +1.6pp |
-| conv-48（新）| 51.0% | 56.1% | +5.1pp |
-
-三规则方向验证：所有 5 conv OPT-6 > B(2.0)，**+++++ ✅ 全同向**。
+> **OPT-6 H1 两项真信号 + 两项强方向**：single_hop +18.4pp（真信号）、adversarial +13.8pp（真信号）；overall +5.7pp（强方向，CI 重叠 0.09pp 触线）、temporal +19.7pp（强方向，n 太小）。**方向证实，但 overall 未完整过三规则。**
 
 ---
 
-## 2. 全类别 sample=5 对比（n=1136）
+## 1. sample=5 final 判决表（瓶儿 Wilson 盖章）
 
-| 类别 | B(2.0) | CI [95%] | OPT-6 H1 | CI [95%] | Δpp | Δ题 | √n | CI 不重叠 | 三规则判定 |
-|------|--------|----------|----------|----------|-----|-----|-----|-----------|-----------|
-| **overall** | 46.0% | [43.1,48.9] | **52.4%** | [49.5,55.3] | **+6.4** | +73 | 33.7 | ✅ | ✅ **真信号** |
-| **single_hop** | 17.1% | [12.0,23.7] | **35.4%** | [28.4,43.2] | **+18.4** | +29 | 12.6 | ✅ | ✅ **真信号** |
-| **adversarial** | 73.5% | [67.8,78.5] | **87.3%** | [82.7,90.8] | **+13.8** | +36 | 16.1 | ✅ | ✅ **真信号** |
-| **temporal** | 4.9% | [1.7,13.5] | **24.6%** | [15.5,36.7] | **+19.7** | +12 | 7.8 | ✅ | ✅ **真信号** |
-| open_domain | 56.4% | [51.9,60.7] | 56.6% | [52.1,60.9] | +0.2 | +1 | 21.9 | ⚠️ 重叠 | ❌ 噪声 |
-| multi_hop | 17.4% | [12.5,23.7] | 14.6% | [10.2,20.5] | -2.8 | -5 | 13.3 | ⚠️ 重叠 | ❌ 噪声 |
-
-> ⚠️ CI 由 PM 手算（Wilson 公式），以瓶儿独立验收为准。
+| 类别 | B(2.0) | OPT-6 H1 | Δpp | Wilson 判定 | 含义 |
+|------|--------|----------|-----|------------|------|
+| **single_hop** | ~17% | **35.4%** | **+18.4pp** | ✅ **真信号**（CI 不重叠）| ADD-only fact 密度直接命中 |
+| **adversarial** | ~73% | **87.3%** | **+13.8pp** | ✅ **真信号**（CI 不重叠）| LLM 拒答能力反而强化 |
+| overall | ~47% | **52.4%** | **+5.7pp** | 🟡 强方向（CI 重叠 0.09pp 触线）| 等 OPT-7 拉开 |
+| temporal | ~5% | **24.6%** | **+19.7pp** | 🟡 强方向（CI 重叠，n=38 太小）| Step B 主攻 |
+| open_domain | ~56% | **56.6%** | **+0.2pp** | ✅ 不退步 | OPT-6 未引入新退步 |
+| multi_hop | ~17% | **14.6%** | **-2.8pp** | ❌ 噪声 | 待 OPT-7 entity linking |
 
 ---
 
-## 3. DoD 红线验收（spec v0.2）
+## 2. 数字对账记录
 
-| 红线 | 目标 | sample=5 结果 | 状态 |
-|------|------|--------------|------|
-| overall ≥ 50% | CI 不重叠 + Δ≥34题 + 5conv同向 | 52.4%，+73题，+++++ | ✅ 达标 |
+- 雪琪 v0.3 文件池：B(2.0) overall = 46.0%（Δ=+6.4pp）
+- 瓶儿 final 文件池：B(2.0) overall ≈ 46.7%（Δ=+5.7pp，CI 重叠 0.09pp）
+- 差因：conv-49 使用了不同时间戳的 B(2.0) run
+
+**纪律沉淀**→ protocol v0.4：B(2.0) 对照文件 commit hash 强制记录，不可用任意同 conv 旧文件。
+
+---
+
+## 3. DoD 红线验收
+
+| 红线 | 目标 | 结果 | 状态 |
+|------|------|------|------|
+| overall ≥ 50% | Wilson 三规则 | 52.4%，CI 重叠 0.09pp | 🟡 数字达标，三规则未完整 |
 | single_hop ≥ 24% | CI 不重叠 + Δ≥13题 | 35.4%，+29题 | ✅ 达标 |
-| temporal ≥ 15% | 不退步 | 24.6%，CI 不重叠 | ✅ 超标（真信号） |
+| temporal ≥ 15% | 不退步 | 24.6% 强方向 | ✅ 超标 |
 | open_domain ≥ 53% | 不退步 | 56.6% | ✅ 不退步 |
-| adversarial ≥ 65% | 不崩 | 87.3%，真信号 | ✅ 大幅超标 |
+| adversarial ≥ 65% | 不崩 | 87.3% 真信号 | ✅ 大幅超标 |
 
-**PM 判断：5 红线全过。以瓶儿 Wilson final 盖章为准。**
-
----
-
-## 4. open_domain 双账说明（归因澄清）
-
-| 对比 | 数字 | 原因 | 谁的账 |
-|------|------|------|--------|
-| OPT-6 vs B(2.0) sample=5 | +0.2pp（噪声）| OPT-6 未改变 open_domain | 噪声，无退步 ✅ |
-| B(2.0) vs A baseline | -10.0pp | OPT-2 LLM 层引入拒答机制 | OPT-2 历史账，OPT-7/Step B 修复 |
-
-OPT-6 没有引入新的 open_domain 退步。
+**4/5 红线通过或超标。default-ON 等 OPT-7 补足 overall CI。**
 
 ---
 
-## 5. 根因验证（why-they-win.md 预测 vs 实际）
+## 4. open_domain 双账
 
-| 根因 | 预测（commit `0caf4d4`）| sample=5 实际 | 验证 |
-|------|----------------------|-------------|------|
-| 抽取层→信息密度→single/overall 提升 | single_hop + overall 改善 | single_hop +18.4pp（真信号）| ✅ 验证 |
-| adversarial 不崩 | ≥65% | 87.3%（大涨）| ✅ 超预期 |
-| temporal 结构性缺陷，待 Step B | 小幅或噪声 | +19.7pp 真信号（sample=5 放大）| ✅⁺ 意外强信号 |
-| multi_hop 待 entity linking | 不改变 | -2.8pp 噪声 | ✅ 符合预期 |
-
-> temporal +19.7pp 真信号超出预期——可能是 ADD-only 保留历史 fact 对时序题有直接帮助（旧 fact 不被覆盖）。Step B bi-temporal 图层叠加后预计进一步提升。
+| 对比 | Δ | 原因 |
+|------|---|------|
+| OPT-6 vs B(2.0) | +0.2pp 噪声 | OPT-6 未引入退步 ✅ |
+| B(2.0) vs A baseline | -10.0pp | OPT-2 历史退步，OPT-7/Step B 修复 |
 
 ---
 
-## 6. 下一步路线图
+## 5. 纪律实战
 
-### 当前最佳（待 Wilson 盖章后）
-
-| 版本 | overall | 里程碑 |
-|------|---------|--------|
-| A baseline | 29.8% | 起点 |
-| B(2.0) OPT-2 | 46.0%（sample=5 修正）| LLM 回答层 |
-| **OPT-6 H1** | **52.4%** | ADD-only 抽取层 ← **当前最佳** |
-
-### 下一优先级
-
-
+1. 瓶儿挡住 CI 重叠 0.09pp，benchmark 是判官准则通过实战验证
+2. 文件对账 0.7pp 差异被抓——工程纪律直接影响判决
+3. temporal sample=3 仅 +2.6pp，sample=5 暴露 +19.7pp——小样本低估真实增量教训
 
 ---
+
+## 6. 路线图
+
+```
+opt-in --extract-facts 已上线
+    ↓
+OPT-7：多信号检索 fusion（BM25+entity+vector）
+    目标：overall CI 拉开 → 真信号 → default-ON
+    paper_ref: mem0 blog 2026-04-17 §multi-signal retrieval
+    ↓
+Step B：Graphiti bi-temporal
+    目标：temporal 从 24.6% 强方向→真信号（≥35%）
+    paper_ref: arXiv:2501.13956
+```
 
 ## 7. 待操作
 
-- [ ] **瓶儿 Wilson final 盖章**（sample=5，5 红线）
-- [ ] 瓶儿盖章后：碧瑶 PR 起草（OPT-6 H1 merge + default-ON 解锁 PR）
-- [ ] OPT-7 spec 起草（PM: 雪琪，backend: 碧瑶）
-- [ ] Step B 时间线确认（temporal 已有 24.6% 基础，Step B 期望≥35% 更有把握）
-- [ ] protocol v0.4：sample 偏差风险记录（conv 选择 P20-P80 随机化建议）
+- [ ] 呆子拍 A/B 决策（A: 推 OPT-7 / B: 补 sample 拿 overall 真信号）
+- [ ] protocol v0.4：对照文件 commit hash 强制记录
+- [ ] OPT-7 spec 起草
+- [ ] Step B 时间线评估
 
 ---
 
-**版本 commit**: 待提交
-**瓶儿 Wilson 状态**: 🟡 待 final 盖章
+**瓶儿盖章状态**: ✅ Wilson final（2 真信号 + 2 强方向）
