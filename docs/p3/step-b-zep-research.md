@@ -2,7 +2,7 @@
 
 **作者**: 雪琪 ❄️
 **日期**: 2026-04-19
-**状态**: v0.1 调研版（pre-spec，未经 PM/QA ACK）
+**状态**: v0.2（小白拍 4 项决策 + 瓶儿 DoD 红点修复 + DoD 数字 TBD-呆子）
 **目的**: 给「OPT-3 Step B = Zep/Graphiti bi-temporal 集成」做实施前调研，输出实施方案候选 + DoD + 风险评估
 
 ---
@@ -62,22 +62,29 @@ Zep paper（2501.13956）在 LongMemEval temporal 类相对基线 +18.5% 聚合 
 
 ---
 
-## 4. DoD 草稿（待瓶儿 review）
+## 4. DoD 草稿（数字 TBD-呆子）
 
-### 必过（阻塞 merge）
-- temporal ≥ 25%（vs 当前 13.2%，+12pp 真信号 = √n + CI 不重叠 + 三 conv 同向）
-- multi_hop ≥ 25%（vs 当前 26.3%，至少不退）
-- open_domain ≥ 51%（不退步，对齐 OPT-2.5 红线）
-- overall ≥ 47%（vs B 44.4%，+2.6pp 缓冲带）
+### 必过（阻塞 merge）——三规则约束
+
+所有 Δ 判定必须走 protocol §4 Wilson 三规则（CI 不重叠 + |Δ|≥√n + 三 conv 同向），**DoD 数字是期望下限，不替代三规则**：
+
+- temporal ≥ **TBD**%（当前 13.2%，期望 +Xpp 真信号）
+- multi_hop ≥ **TBD**%（当前 26.3%，至少不退步）
+- open_domain ≥ **TBD**%（不退步，对齐 OPT-2.5 红线）
+- overall ≥ **TBD**%（当前 B 44.4%）
+
+> 🔴 **红点 A 修复**（瓶儿 review）：原 v0.1 DoD 只写数字下限没绑三规则——现已明确「DoD 数字 + 三规则双重约束，缺一不可」
 
 ### 期望（不阻塞）
 - temporal ≥ 35%（杠杆兑现一半）
 - adversarial 保持 ≥ 65%（OPT-2 LLM 拒答能力不被图层覆盖）
 
-### 跨家公平复测（P3 任务，可独立做）
-- 拉 mem0 / Zep SDK 在我们 conv-49/42/43 同 judge 跑一遍
-- 验证 v0.2 gap 表数字真实度
-- 写入 `research/cross-system-benchmark-{date}.md`
+> 🔴 **红点 B 修复**（瓶儿 review）：跨家公平复测从“可独立做”升为 Step B DoD 必做项（否则 gap 表数字永远不可比）
+
+### 跨家公平复测（Step B 必做项）
+- 拉 mem0 SDK / Graphiti 在我们 conv-49/42/43 + 同 judge (gpt-5+CoT v3) 跑一遍
+- 验证 gap 表数字真实度
+- 输出 `research/cross-system-benchmark-{date}.md`
 
 ---
 

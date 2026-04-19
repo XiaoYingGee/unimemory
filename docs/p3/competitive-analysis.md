@@ -2,7 +2,7 @@
 
 **作者**: 雪琪 ❄️
 **日期**: 2026-04-19
-**状态**: v0.2（瓶儿 review 后修正 mem0 子类别口径混淆 + 折扣估算去除）
+**状态**: v0.3（瓶儿 review #2：Zep 行软化为「量级差距」）
 **目的**: 回答呆子「我们现在各层和主流实现还差多少」
 
 ---
@@ -26,7 +26,7 @@
 | **mem0 新算法**（2026-04, blog/research）¹ | **91.6** | 92.3 | 93.3 | 70.2 | 76.0 | 单遍 ADD-only 抽取 + 多信号检索 + agent fact 一等公民 | overall -47pp | ⭐ ADD-only 抽取（避免 update 噪声）；agent fact 入库 |
 | **mem0 旧算法**（同 blog 对照基线）¹ | 71.4 | — | — | — | — | 两遍抽取（ADD/UPDATE/DELETE） | — | — |
 | **mem0 LoCoMo 论文**（2504.19413） | ~66.9 | — | — | — | — | LLM-as-Judge 是核心，judge 提升 +26% | — | judge 路线已对齐 ✅ |
-| **Zep / Graphiti**（2501.13956） | LongMemEval 自报 SOTA | — | — | **强**（bi-temporal） | — | 时序知识图（valid_time + tx_time 双时间） | temporal -68pp（5.3% vs 推算 ≥70%）| ⭐⭐ bi-temporal 图是 temporal 类硬解，Step B 主攻 |
+| **Zep / Graphiti**（2501.13956）³ | LongMemEval 自报 SOTA（具体 % 未公开） | — | — | **强**（bi-temporal） | — | 时序知识图（valid_time + tx_time 双时间） | temporal 量级差距明显（不给具体 pp，待公平复测） | ⭐⭐ bi-temporal 图是 temporal 类硬解，Step B 主攻 |
 | **MemGPT / Letta** | DMR 93.4（GPT-4-Turbo）| — | — | — | — | HMEM 分层（main/recall/archival）+ self-edit | 架构维度差距 | 分层冷热分离思路；不主攻 |
 | **LangChain / LlamaIndex** | 基线 RAG（无统一公开数）| — | — | — | — | 朴素向量 + 简单 summary | 我们 baseline ≈ 这档 | 已超越，无借鉴价值 |
 | **我们 A baseline** | 29.8 [26.5, 33.3] | 28.2 | 24.2 | 5.3 | **63.6** | 朴素向量检索 | — | — |
