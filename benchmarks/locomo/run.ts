@@ -343,7 +343,7 @@ async function evaluateQA(
       const context = eventContext
         ? `${eventContext}\n\n[Conversation excerpts]\n${chunkContext}`
         : chunkContext;
-      const prompt = `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.\n\nContext:\n${context}\n\nQuestion: ${qa.question}\n\nIf the answer cannot be determined from the context, respond with "None".\nRespond with ONLY the answer (a few words), no explanation.`;
+      const prompt = `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.\n\nContext:\n${context}\n\nQuestion: ${qa.question}\n\nInstructions:\n- If you can find a clear answer in the context, respond with ONLY the answer (a few words).\n- If you have partial information but are not certain, give your best answer based on available context.\n- Only respond with "None" if the context contains absolutely no relevant information to answer the question.\nRespond with ONLY the answer (a few words), no explanation.`;
 
       const llmAnswer = await callLLMForAnswer(prompt);
       // Use semantic judge (CoT v3) as main metric
