@@ -112,6 +112,8 @@ n=698，√n=26.4 题（overall 级）；各子类以实际 n 计算。
 
 ### DB schema 变更
 
+> ⚠️ **OPT-6.5 延后处理**：以下 4 个字段的 migration script 将在 OPT-6.5 统一实现。当前 OPT-6 H1 跑批已通过运行时 `ALTER TABLE ADD IF NOT EXISTS` 在生产 DB 执行迁移，功能正常。代码层 migration 文件不在本 PR scope 内。
+
 ```sql
 -- 现有 memories 表新增字段：
 ALTER TABLE memories ADD COLUMN IF NOT EXISTS valid_from TIMESTAMPTZ DEFAULT NOW();
