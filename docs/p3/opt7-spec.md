@@ -1,7 +1,7 @@
 # OPT-7 立项 Spec
 
-**版本**: v0.1（PM 愿景 + DoD，backend 实现细节待碧瑶补全）
-**状态**: 🟡 起草中
+**版本**: v0.2（OPT-6 sample=7 真实基线 + 瓶儿 QA 红线 + smoke 强制 + paper_ref 分段）
+**状态**: 🟡 起草中，待瓶儿 ACK
 **日期**: 2026-04-19
 **paper_ref**: mem0 blog 2026-04-17 "Token-Efficient Memory Algorithm" §multi-signal retrieval（三路检索融合）+ Robertson & Zaragoza (2009) BM25 / Okapi BM25（keyword 检索基础）
 **repo_ref**: github.com/mem0ai/mem0（open-source SDK）
@@ -10,10 +10,10 @@
 
 ## 为什么做（背景）
 
-OPT-6 H1 final 判决（`docs/p3/opt6-h1-verdict.md` v0.4）：
-- overall +5.7pp 强方向（CI 重叠 0.09pp，未完整过三规则）
-- multi_hop -2.8pp 噪声（仍是弱点）
-- single_hop 已 +18.4pp 真信号
+OPT-6 H1 final 判决（`docs/p3/opt6-h1-verdict.md` v0.6，sample=7，n=1533）：
+- overall +5.7pp **真信号**（CI 不重叠 0.67pp，7/7 conv 同向）
+- single_hop +14.0pp、adversarial +16.1pp、temporal +14.5pp **强方向**
+- multi_hop -3.0pp **噪声**（OPT-7 主攻目标）
 
 根因分析（`docs/p3/why-they-win.md` §1.3）：
 
@@ -54,20 +54,38 @@ OPT-7 目标检索路径:
 
 ### 必过（阻塞 merge）——三规则双约束
 
-数字基准：OPT-6 H1 sample=5 final（`docs/p3/opt6-h1-verdict.md` v0.4）
+**数字约束 + 三规则同时满足，缺一不可。逐 conv 方向表必须列出。**
 
-| 指标 | OPT-6 基准 | 目标下限 | 三规则说明 |
-|------|-----------|---------|-----------|
-| overall | 52.4% | ≥ **55%** | CI 不重叠；Δ题 ≥ √1136≈34；5 conv 同向 |
-| multi_hop | 14.6% | ≥ **20%** | 从噪声→真信号（Δ题 ≥ √99≈10）|
-| open_domain | 56.6% | ≥ **56%** | 不退步 |
-| single_hop | 35.4% | ≥ **33%** | 不破坏 OPT-6 真信号（允许小幅噪声内回落）|
-| adversarial | 87.3% | ≥ **82%** | 不破坏 OPT-6 真信号 |
+数字基准：OPT-6 H1 sample=7 final（`docs/p3/opt6-h1-verdict.md` v0.6，n=1533）：
+
+| 指标 | OPT-6 基准 | OPT-6 CI [95%] | 目标下限 | 三规则说明 |
+|------|-----------|----------------|---------|-----------|
+| overall | **53.7%** | [51.2%, 56.2%] | ≥ **57%** | CI 不重叠；Δ题 ≥ √1533≈39；7 conv 同向 |
+| multi_hop | **13.5%** | [9.7%, 18.4%] | ≥ **22%** | 从噪声→真信号（Δ题 ≥ √237≈15）；三 conv 同向 |
+| open_domain | **58.9%** | [55.1%, 62.6%] | ≥ **58%** | 不退步 |
+| single_hop | **36.2%** | [30.1%, 42.7%] | ≥ **34%** | 不破坏 OPT-6 强方向（允许 ±2% 噪声）|
+| adversarial | **88.5%** | [84.7%, 91.4%] | ≥ **85%** | 不破坏 OPT-6 强方向 |
+
+> 🔴 **红点 A**（瓶儿 QA 红线）：基线必须用 OPT-6 sample=7 真实数字，已修正（v0.1 错用 sample=5）。
+> 🔴 **红点 B**（瓶儿 QA 红线）：multi_hop **必涨**至真信号，是必过红线，非期望项。
 
 ### 期望（不阻塞）
 
 - overall ≥ 58%（multi-signal 全发挥）
 - multi_hop ≥ 25%（接近 mem0 论文水平）
+
+---
+
+## smoke 阶段（强制，spec ACK 后第一步）
+
+> 🔴 **红点 C**（瓶儿 QA 红线）：smoke 是强制步骤，不可跳过直接起 H1。
+
+**smoke 三标准**：
+1. conv-49 单 conv 跑批出结果
+2. OPT-7 overall ≥ OPT-6 conv-49 baseline × 0.9（约 ≥ 46%，防崩盘）
+3. adversarial 不低于 OPT-6 conv-49 adversarial × 0.85（约 ≥ 77%，不破坏已有能力）
+
+smoke 通过 → 起 H1 sample=7 跑批。
 
 ---
 
@@ -144,5 +162,8 @@ CREATE INDEX IF NOT EXISTS memories_tsv_idx ON memories USING GIN(content_tsv);
 
 ---
 
-**paper_ref**: mem0 blog 2026-04-17 "Token-Efficient Memory Algorithm" §multi-signal retrieval; Robertson & Zaragoza (2009) BM25
+**paper_ref 分段**（瓶儿 QA 红线）：
+- **检索融合**：mem0 blog 2026-04-17 §multi-signal retrieval（三路 fusion + entity matching + keyword normalization）
+- **BM25 理论**：Robertson & Zaragoza (2009) BM25 and Beyond
+- **RRF 融合**：Cormack et al. (2009) Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods
 **benchmark_target**: overall ≥ 55% + multi_hop ≥ 20%（Wilson 三规则，sample=5 对比 OPT-6）
