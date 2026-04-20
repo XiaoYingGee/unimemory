@@ -1,7 +1,7 @@
 # OPT-7 立项 Spec
 
-**版本**: v0.2（OPT-6 sample=7 真实基线 + 瓶儿 QA 红线 + smoke 强制 + paper_ref 分段）
-**状态**: 🟡 起草中，待瓶儿 ACK
+**版本**: v0.3（+ 灵儿前端视角：权重 config 暴露 + 召回 debug API）
+**状态**: 🟡 起草中，待瓶儿 ACK + 碧瑶 implementation 评估
 **日期**: 2026-04-19
 **paper_ref**: mem0 blog 2026-04-17 "Token-Efficient Memory Algorithm" §multi-signal retrieval（三路检索融合）+ Robertson & Zaragoza (2009) BM25 / Okapi BM25（keyword 检索基础）
 **repo_ref**: github.com/mem0ai/mem0（open-source SDK）
@@ -136,6 +136,48 @@ CREATE INDEX IF NOT EXISTS memories_tsv_idx ON memories USING GIN(content_tsv);
 ### 动词归一化
 
 参考 mem0 blog：keyword 搜索需要动词变形归一化（"attending a meeting" ↔ "what meetings did I attend"）。PostgreSQL `english` dictionary 内置词干处理，tsvector 自动覆盖基本需求。
+
+---
+
+## 可观测性 & 扩展性设计（灵儿前端视角，v0.3 新增）
+
+### 三路权重暴露
+
+融合权重默认黑盒（实验调优），同时暴露 env 覆盖给 power user：
+
+```typescript
+// 默认权重（RRF 内部等权，调参在 k 值）
+// 若需显式加权可通过 env 覆盖：
+// UNIMEMORY_RETRIEVAL_WEIGHTS=vector:0.5,bm25:0.3,entity:0.2
+const DEFAULT_WEIGHTS = { vector: 0.5, bm25: 0.3, entity: 0.2 }
+const weights = parseWeightsFromEnv() ?? DEFAULT_WEIGHTS
+```
+
+**PM 建议**：H1/H2 实验阶段保持等权（RRF k=60），benchmark 出数后再调权重。权重 config 作为「下一步可调旋钮」预埋，不在 H1 scope 内主动调整。
+
+### 召回 debug API（`_signals` 字段）
+
+每条返回的 memory chunk 附带 `_signals` 字段，说明哪些检索路径召回了它及各路得分：
+
+```typescript
+interface MemoryChunk {
+  id: string
+  content: string
+  score: number  // 融合后最终 score
+  _signals?: {
+    sources: Array<'vector' | 'bm25' | 'entity'>  // 召回路径
+    scores: {
+      vector?: number
+      bm25?: number
+      entity?: number
+    }
+  }
+}
+```
+
+**设计原则**：`_signals` 为可选字段（debug 模式下返回），融合阶段本来就有这数据，无额外计算成本。未来 dashboard 直接渲染「这条记忆是怎么被找到的」。
+
+**碧瑶待评估**：`_signals` 暴露对现有 API response schema 的影响、是否需要 `?debug=true` flag 控制返回。
 
 ---
 
