@@ -487,8 +487,9 @@ async function runBenchmark(options: {
   useLLM?: boolean;
   useEvents?: boolean;
   extractFactsMode?: boolean;
+  skipIngest?: boolean;
 }): Promise<BenchmarkResult[]> {
-  const { dataPath, sampleSize, topK = 5, concurrency = 3, conversationId, useLLM = false, useEvents = true, extractFactsMode = false } = options;
+  const { dataPath, sampleSize, topK = 5, concurrency = 3, conversationId, useLLM = false, useEvents = true, extractFactsMode = false, skipIngest = false } = options;
 
   const rawData: any[] = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
 
@@ -535,7 +536,8 @@ async function runBenchmark(options: {
 
   console.log(`\n[Benchmark] Ingesting ${conversations.length} conversations with concurrency=${concurrency}...`);
   
-  // Parallel ingestion
+  // Parallel ingestion (skip if --skip-ingest flag)
+  if (!options.skipIngest) {
   for (let i = 0; i < conversations.length; i += concurrency) {
     const batch = conversations.slice(i, i + concurrency);
     for (const conv of batch) {
@@ -545,6 +547,9 @@ async function runBenchmark(options: {
     for (const conv of batch) {
       console.log(`    ✓ ${conv.conversation_id} ingested`);
     }
+  }
+  } else {
+    console.log('  [skip-ingest] Skipping ingestion, using existing memories in DB.');
   }
 
   console.log(`\n[Benchmark] Evaluating QAs with top_k=${topK}${useLLM ? ' + LLM answer layer' : ''}...`);
@@ -628,6 +633,7 @@ async function main() {
   const useLLM = args.includes('--llm');
   const useEvents = !args.includes('--no-events');
   const extractFactsMode = args.includes('--extract-facts');
+  const skipIngest = args.includes('--skip-ingest');
 
   const results = await runBenchmark({
     dataPath,
@@ -638,6 +644,7 @@ async function main() {
     useLLM,
     useEvents,
     extractFactsMode,
+    skipIngest,
   });
 
   printSummary(results, topK);
