@@ -1,0 +1,256 @@
+{
+  "conversationId": "conv-26",
+  "samples": [
+    {
+      "idx": 3,
+      "category": "single_hop",
+      "question": "What did Caroline research?",
+      "expected": "Adoption agencies",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is \"Adoption agencies\" and the generated answer is \"None\", indicating inability to answer. Since the expected answer is not \"None\" or empty, and the generated answer does not match \"Adoption agencies\", this is incorrect.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 18,
+      "category": "single_hop",
+      "question": "Where has Melanie camped?",
+      "expected": "beach, mountains, forest",
+      "generated": "The forest",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer includes three locations: beach, mountains, and forest. The generated answer only mentions \"the forest,\" missing beach and mountains.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 37,
+      "category": "single_hop",
+      "question": "What did Melanie paint recently?",
+      "expected": "sunset",
+      "generated": "A sunset-inspired painting and a horse painting.",
+      "judge_verdict": true,
+      "judge_raw": "The expected answer is \"sunset\" and the generated answer includes \"a sunset-inspired painting,\" which matches the core meaning.\n\nVERDICT: CORRECT",
+      "token_overlap_correct": true
+    },
+    {
+      "idx": 48,
+      "category": "single_hop",
+      "question": "What types of pottery have Melanie and her kids made?",
+      "expected": "bowls, cup",
+      "generated": "Pots and a cup.",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer includes \"bowls\" and \"cup\". The generated answer says \"Pots and a cup.\" A pot is not the same as a bowl - while both are vessels, they are distinct types of pottery. The cup matches, but bowls ≠ pots.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 61,
+      "category": "single_hop",
+      "question": "What musical artists/bands has Melanie seen?",
+      "expected": "Summer Sounds, Matt Patterson",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is \"Summer Sounds, Matt Patterson\" but the generated answer is \"None.\" These do not match.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 0,
+      "category": "multi_hop",
+      "question": "When did Caroline go to the LGBTQ support group?",
+      "expected": "7 May 2023",
+      "generated": "Yesterday (Session 1)",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is a specific date: 7 May 2023. The generated answer says \"Yesterday (Session 1)\" which does not provide the specific date.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 12,
+      "category": "multi_hop",
+      "question": "How long ago was Caroline's 18th birthday?",
+      "expected": "10 years ago",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The generated answer is None, but the expected answer is \"10 years ago\" (not None/unanswerable). The generated answer fails to provide the correct information.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 28,
+      "category": "multi_hop",
+      "question": "When did Caroline go to the adoption meeting?",
+      "expected": "The friday before 15 July 2023",
+      "generated": "Last Friday (Session 8)",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is \"The friday before 15 July 2023.\" The generated answer says \"Last Friday (Session 8)\" which doesn't specify the actual date. However, \"last Friday\" could refer to the Friday before July 15, 2023 if the session is on July 15. The reference to \"Session 8\" doesn't help confirm the date.\n\nThe generated answer lacks the specific date information needed to verify it matches \"the Friday before 15 July 2023.\"\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 44,
+      "category": "multi_hop",
+      "question": "When is Melanie's daughter's birthday?",
+      "expected": "13 August",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is \"13 August\" and the generated answer is \"None\", indicating inability to answer. Since the expected answer is not None/empty, this is wrong.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 62,
+      "category": "multi_hop",
+      "question": "When did Melanie go to the park?",
+      "expected": "27 August 2023",
+      "generated": "Yesterday",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is a specific date (27 August 2023), while the generated answer says \"Yesterday,\" which is a relative term that doesn't confirm the specific date.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 2,
+      "category": "temporal",
+      "question": "What fields would Caroline be likely to pursue in her educaton?",
+      "expected": "Psychology, counseling certification",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is \"Psychology, counseling certification\" which is a specific answer, not \"None\". The generated answer is \"None\" indicating inability to answer. Since the expected answer contains actual content, the generated answer is wrong.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 22,
+      "category": "temporal",
+      "question": "Would Caroline likely have Dr. Seuss books on her bookshelf?",
+      "expected": "Yes, since she collects classic children's books",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is \"Yes, since she collects classic children's books,\" but the generated answer is \"None,\" indicating inability to answer. The expected answer is not None/empty, so this is not an unanswerable question. The generated answer does not match the expected answer.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 30,
+      "category": "temporal",
+      "question": "Would Melanie be considered a member of the LGBTQ community?",
+      "expected": "Likely no, she does not refer to herself as part of it",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The generated answer is \"None\", indicating inability to answer. The expected answer is not \"None\" - it provides a substantive answer. However, I need to check the rule: \"When the expected answer is 'None' or empty, the question is unanswerable; if the generated answer also indicates inability to answer, treat as CORRECT.\"\n\nThe expected answer here is NOT None - it's \"Likely no, she does not refer to herself as part of it.\" So the special rule doesn't apply. The generated answer of \"None\" does not match the expected answer.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 46,
+      "category": "temporal",
+      "question": "Would Melanie be considered an ally to the transgender community?",
+      "expected": "Yes, she is supportive",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The generated answer is \"None\", indicating inability to answer. The expected answer is \"Yes, she is supportive\", which is a definitive answer. These do not match.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 59,
+      "category": "temporal",
+      "question": "Would Caroline be considered religious?",
+      "expected": "Somewhat, but not extremely religious",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is \"Somewhat, but not extremely religious\" which is a substantive answer. The generated answer is \"None\" indicating inability to answer. Since the expected answer is not None/empty, this is a case where the question is answerable but the generated answer fails to provide the answer.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 82,
+      "category": "open_domain",
+      "question": "What did the charity race raise awareness for?",
+      "expected": "mental health",
+      "generated": "Mental health",
+      "judge_verdict": true,
+      "judge_raw": "The generated answer \"Mental health\" matches the expected answer \"mental health\" - same meaning, just capitalized differently.\n\nVERDICT: CORRECT",
+      "token_overlap_correct": true
+    },
+    {
+      "idx": 96,
+      "category": "open_domain",
+      "question": "What kind of counseling and mental health services is Caroline interested in pursuing?",
+      "expected": "working with trans people, helping them accept themselves and supporting their mental health",
+      "generated": "Working with trans people, supporting their mental health and self-acceptance.",
+      "judge_verdict": true,
+      "judge_raw": "The generated answer captures the same meaning as the expected answer.\n\nVERDICT: CORRECT",
+      "token_overlap_correct": true
+    },
+    {
+      "idx": 110,
+      "category": "open_domain",
+      "question": "What kind of pot did Mel and her kids make with clay?",
+      "expected": "a cup with a dog face on it",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is \"a cup with a dog face on it\" and the generated answer is \"None\", indicating inability to answer. Since the expected answer is not None/empty, this is wrong.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 124,
+      "category": "open_domain",
+      "question": "What pets does Melanie have?",
+      "expected": "Two cats and a dog",
+      "generated": "A dog and a cat.",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer is \"two cats and a dog\" (plural cats), but the generated answer says \"a dog and a cat\" (only one cat). This is a factual discrepancy.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 138,
+      "category": "open_domain",
+      "question": "What kind of painting did Caroline share with Melanie on October 13, 2023?",
+      "expected": "An abstract painting with blue streaks on a wall.",
+      "generated": "None",
+      "judge_verdict": false,
+      "judge_raw": "The expected answer describes a specific painting, but the generated answer is \"None\", indicating inability to answer. Since the expected answer is not \"None\" and contains actual content, the generated answer fails to provide the correct information.\n\nVERDICT: WRONG",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 152,
+      "category": "adversarial",
+      "question": "What did Caroline realize after her charity race?",
+      "expected": "",
+      "generated": "None",
+      "judge_verdict": true,
+      "judge_raw": "{\"correct\":true}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 161,
+      "category": "adversarial",
+      "question": "What is Caroline's hand-painted bowl a reminder of?",
+      "expected": "",
+      "generated": "Art and self-expression",
+      "judge_verdict": false,
+      "judge_raw": "{\"correct\":false}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 170,
+      "category": "adversarial",
+      "question": "What does Caroline say running has been great for?",
+      "expected": "",
+      "generated": "None",
+      "judge_verdict": true,
+      "judge_raw": "{\"correct\":true}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 179,
+      "category": "adversarial",
+      "question": "Where did Oscar hide his bone once?",
+      "expected": "",
+      "generated": "None",
+      "judge_verdict": true,
+      "judge_raw": "{\"correct\":true}",
+      "token_overlap_correct": false
+    },
+    {
+      "idx": 188,
+      "category": "adversarial",
+      "question": "What setback did Caroline face recently?",
+      "expected": "",
+      "generated": "None",
+      "judge_verdict": true,
+      "judge_raw": "{\"correct\":true}",
+      "token_overlap_correct": false
+    }
+  ],
+  "timestamp": "2026-04-18T12:36:44.002Z"
+}

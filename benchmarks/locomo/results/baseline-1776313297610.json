@@ -1,0 +1,87 @@
+{
+  "results": [
+    {
+      "conversation_id": "conv-26",
+      "total_qa": 199,
+      "correct": 30,
+      "accuracy": 0.1507537688442211,
+      "by_category": {
+        "multi_hop": {
+          "total": 37,
+          "correct": 1,
+          "accuracy": 0.02702702702702703
+        },
+        "temporal": {
+          "total": 13,
+          "correct": 0,
+          "accuracy": 0
+        },
+        "single_hop": {
+          "total": 79,
+          "correct": 3,
+          "accuracy": 0.0379746835443038
+        },
+        "open_domain": {
+          "total": 70,
+          "correct": 26,
+          "accuracy": 0.37142857142857144
+        }
+      },
+      "avg_retrieval_ms": 1103.7286432160804
+    },
+    {
+      "conversation_id": "conv-30",
+      "total_qa": 105,
+      "correct": 26,
+      "accuracy": 0.24761904761904763,
+      "by_category": {
+        "multi_hop": {
+          "total": 26,
+          "correct": 1,
+          "accuracy": 0.038461538461538464
+        },
+        "open_domain": {
+          "total": 44,
+          "correct": 24,
+          "accuracy": 0.5454545454545454
+        },
+        "single_hop": {
+          "total": 35,
+          "correct": 1,
+          "accuracy": 0.02857142857142857
+        }
+      },
+      "avg_retrieval_ms": 927.1714285714286
+    },
+    {
+      "conversation_id": "conv-41",
+      "total_qa": 193,
+      "correct": 57,
+      "accuracy": 0.29533678756476683,
+      "by_category": {
+        "multi_hop": {
+          "total": 27,
+          "correct": 1,
+          "accuracy": 0.037037037037037035
+        },
+        "single_hop": {
+          "total": 72,
+          "correct": 8,
+          "accuracy": 0.1111111111111111
+        },
+        "temporal": {
+          "total": 8,
+          "correct": 0,
+          "accuracy": 0
+        },
+        "open_domain": {
+          "total": 86,
+          "correct": 48,
+          "accuracy": 0.5581395348837209
+        }
+      },
+      "avg_retrieval_ms": 927.8031088082902
+    }
+  ],
+  "timestamp": "2026-04-16T04:21:37.610Z"
+}

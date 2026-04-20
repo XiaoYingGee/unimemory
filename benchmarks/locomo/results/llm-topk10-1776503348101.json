@@ -1,0 +1,41 @@
+{
+  "results": [
+    {
+      "conversation_id": "conv-26",
+      "total_qa": 199,
+      "correct": 46,
+      "accuracy": 0.23115577889447236,
+      "by_category": {
+        "multi_hop": {
+          "total": 37,
+          "correct": 1,
+          "accuracy": 0.02702702702702703
+        },
+        "temporal": {
+          "total": 13,
+          "correct": 0,
+          "accuracy": 0
+        },
+        "single_hop": {
+          "total": 32,
+          "correct": 7,
+          "accuracy": 0.21875
+        },
+        "open_domain": {
+          "total": 70,
+          "correct": 38,
+          "accuracy": 0.5428571428571428
+        },
+        "adversarial": {
+          "total": 47,
+          "correct": 0,
+          "accuracy": 0
+        }
+      },
+      "avg_retrieval_ms": 1348.3467336683418
+    }
+  ],
+  "topK": 10,
+  "useLLM": true,
+  "timestamp": "2026-04-18T09:09:08.102Z"
+}
