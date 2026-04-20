@@ -346,3 +346,121 @@ async function classifyConflictsAsync(
     console.error('[B1] classifyConflictsAsync error:', err);
   }
 }
+
+/**
+ * OPT-7: Hybrid search — vector + BM25 (pg fulltext) + entity tag boost
+ * Fuses three signals with configurable weights.
+ */
+export async function searchMemoriesHybrid(
+  req: SearchMemoryRequest & { hybridWeights?: { vector: number; bm25: number; entity: number } }
+): Promise<SearchMemoryResponse & { _signals?: Record<string, number[]> }> {
+  const db = await getDb();
+  const queryEmbedding = await generateEmbedding(req.query);
+  const topK = req.top_k ?? 5;
+  const minConfidence = req.min_confidence ?? 0.0;
+  const weights = req.hybridWeights ?? {
+    vector: parseFloat(process.env.UNIMEMORY_WEIGHT_VECTOR ?? '0.6'),
+    bm25:   parseFloat(process.env.UNIMEMORY_WEIGHT_BM25   ?? '0.3'),
+    entity: parseFloat(process.env.UNIMEMORY_WEIGHT_ENTITY ?? '0.1'),
+  };
+
+  const scopeCondition = req.project_id
+    ? `AND (scope = 'global' OR (scope = 'project' AND project_id = $4))`
+    : `AND scope = 'global'`;
+
+  // Hybrid query: vector score + BM25 normalized + entity tag boost
+  const hybridQuery = `
+    WITH base AS (
+      SELECT
+        *,
+        1 - (embedding <=> $1::vector) AS vec_score,
+        COALESCE(
+          ts_rank_cd(to_tsvector('simple', content), plainto_tsquery('simple', $2)),
+          0
+        ) AS bm25_raw,
+        CASE WHEN entity_tags && $3::text[] THEN 1.0 ELSE 0.0 END AS entity_boost
+      FROM memories
+      WHERE
+        agent_id != 'private'
+        AND archived_at IS NULL
+        AND status IN ('active', 'disputed')
+        AND confidence >= $5
+        ${scopeCondition}
+    ),
+    ranked AS (
+      SELECT *,
+        (vec_score * ${weights.vector} + bm25_raw * ${weights.bm25} + entity_boost * ${weights.entity}) AS hybrid_score
+      FROM base
+      WHERE vec_score > 0.3 OR bm25_raw > 0 OR entity_boost > 0
+    )
+    SELECT * FROM ranked
+    ORDER BY hybrid_score DESC
+    LIMIT $6
+  `;
+
+  // Extract rough entity hints from query (simple word extraction)
+  const queryWords = req.query.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+  const entityHints = queryWords.map(w => `speaker:${w}`).concat(queryWords.map(w => `session:${w}`));
+
+  const params = [
+    JSON.stringify(queryEmbedding),
+    req.query,
+    entityHints,
+    minConfidence,
+    ...(req.project_id ? [req.project_id, topK] : [topK]),
+  ];
+
+  // Fix param indices for project_id
+  const finalParams: (string | number | string[])[] = [
+    JSON.stringify(queryEmbedding),
+    req.query,
+    entityHints,
+    req.project_id ?? null,
+    minConfidence,
+    topK,
+  ];
+
+  const finalQuery = `
+    WITH base AS (
+      SELECT
+        *,
+        1 - (embedding <=> $1::vector) AS vec_score,
+        COALESCE(
+          ts_rank_cd(to_tsvector('simple', content), plainto_tsquery('simple', $2)),
+          0
+        ) AS bm25_raw,
+        CASE WHEN entity_tags && $3::text[] THEN 1.0 ELSE 0.0 END AS entity_boost
+      FROM memories
+      WHERE
+        agent_id != 'private'
+        AND archived_at IS NULL
+        AND status IN ('active', 'disputed')
+        AND confidence >= $5
+        AND ($4::text IS NULL OR scope = 'global' OR (scope = 'project' AND project_id = $4))
+    ),
+    ranked AS (
+      SELECT *,
+        (vec_score * ${weights.vector} + bm25_raw * ${weights.bm25} + entity_boost * ${weights.entity}) AS hybrid_score
+      FROM base
+      WHERE vec_score > 0.3 OR bm25_raw > 0 OR entity_boost > 0
+    )
+    SELECT * FROM ranked
+    ORDER BY hybrid_score DESC
+    LIMIT $6
+  `;
+
+  const result = await db.query(finalQuery, finalParams);
+  const ids = result.rows.map((r: { id: string }) => r.id);
+  if (ids.length > 0) {
+    await db.query(
+      `UPDATE memories SET access_count = access_count + 1, last_accessed_at = NOW() WHERE id = ANY($1::uuid[])`,
+      [ids]
+    );
+  }
+
+  const conflictPairs = detectConflictsInResults(result.rows);
+  return {
+    memories: result.rows,
+    conflicts: conflictPairs,
+  };
+}

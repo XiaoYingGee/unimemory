@@ -17,7 +17,7 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-import { writeMemory, searchMemories } from '../../src/memory/service';
+import { writeMemory, searchMemories, searchMemoriesHybrid } from '../../src/memory/service';
 import { WriteMemoryRequest } from '../../src/memory/types';
 import * as fs from 'fs';
 
@@ -267,20 +267,25 @@ async function evaluateQA(
   qa: LoCoMoQA,
   conversationId: string,
   topK: number = 5,
-  useLLM: boolean = false
+  useLLM: boolean = false,
+  _useEvents: boolean = true,
+  useHybrid: boolean = false
 ): Promise<{ correct: boolean; f1Correct: boolean; retrievalMs: number }> {
   const start = Date.now();
 
   let results: Awaited<ReturnType<typeof searchMemories>>;
   try {
-    results = await searchMemories({
+    const searchReq = {
       query: qa.question,
       agent_id: `locomo-${conversationId}`,
-      scope_filter: ['project'],
+      scope_filter: ['project'] as string[],
       project_id: `locomo-${conversationId}`,
       top_k: topK,
       min_similarity: 0.5,
-    });
+    };
+    results = useHybrid
+      ? await searchMemoriesHybrid(searchReq)
+      : await searchMemories(searchReq);
   } catch (err) {
     console.warn(`    [evaluateQA] searchMemories failed: ${(err as Error).message}`);
     return { correct: false, f1Correct: false, retrievalMs: Date.now() - start };
@@ -332,7 +337,9 @@ async function evaluateConversationQAs(
   conv: LoCoMoConversation,
   topK: number,
   qaParallelism: number,
-  useLLM: boolean = false
+  useLLM: boolean = false,
+  _useEvents: boolean = true,
+  useHybrid: boolean = false
 ): Promise<{
   correct: number;
   f1Correct: number;
@@ -345,7 +352,7 @@ async function evaluateConversationQAs(
   let totalMs = 0;
 
   const tasks = conv.qa_pairs.map((qa) => async () => {
-    const { correct: isCorrect, f1Correct: isF1Correct, retrievalMs } = await evaluateQA(qa, conv.conversation_id, topK, useLLM);
+    const { correct: isCorrect, f1Correct: isF1Correct, retrievalMs } = await evaluateQA(qa, conv.conversation_id, topK, useLLM, true, useHybrid);
     return { isCorrect, isF1Correct, retrievalMs, category: qa.category };
   });
 
@@ -400,8 +407,9 @@ async function runBenchmark(options: {
   concurrency?: number;
   conversationId?: string;
   useLLM?: boolean;
+  useHybrid?: boolean;
 }): Promise<BenchmarkResult[]> {
-  const { dataPath, sampleSize, topK = 5, concurrency = 3, conversationId, useLLM = false } = options;
+  const { dataPath, sampleSize, topK = 5, concurrency = 3, conversationId, useLLM = false, useHybrid = false } = options;
 
   const rawData: any[] = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
 
@@ -465,7 +473,7 @@ async function runBenchmark(options: {
   const results: BenchmarkResult[] = [];
 
   for (const conv of conversations) {
-    const { correct, f1Correct, totalMs, byCategory } = await evaluateConversationQAs(conv, topK, 2, useLLM);
+    const { correct, f1Correct, totalMs, byCategory } = await evaluateConversationQAs(conv, topK, 2, useLLM, true, useHybrid);
 
     const result: BenchmarkResult = {
       conversation_id: conv.conversation_id,
@@ -539,6 +547,7 @@ async function main() {
   const concurrency = concArg ? parseInt(concArg.split('=')[1]) : 3;
 
   const useLLM = args.includes('--llm');
+  const useHybrid = args.includes('--hybrid');
 
   const results = await runBenchmark({
     dataPath,
@@ -547,11 +556,12 @@ async function main() {
     concurrency,
     conversationId: convArg ? convArg.split('=')[1] : undefined,
     useLLM,
+    useHybrid,
   });
 
   printSummary(results, topK);
 
-  const suffix = useLLM ? `llm-topk${topK}` : `parallel-topk${topK}`;
+  const suffix = useLLM ? (useHybrid ? `opt7-hybrid-topk${topK}` : `llm-topk${topK}`) : `parallel-topk${topK}`;
   const outPath = path.join(__dirname, 'results', `${suffix}-${Date.now()}.json`);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify({ results, topK, useLLM, timestamp: new Date().toISOString() }, null, 2));
