@@ -18,7 +18,6 @@ import * as path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { writeMemory, searchMemories } from '../../src/memory/service';
-import { getDb } from '../../src/db/connection';
 import { WriteMemoryRequest } from '../../src/memory/types';
 import * as fs from 'fs';
 
@@ -231,57 +230,14 @@ async function runWithConcurrency<T>(
 /**
  * Ingest a conversation into UniMemory.
  */
-async function ingestConversation(conv: LoCoMoConversation, extractFactsMode: boolean = false): Promise<void> {
+async function ingestConversation(conv: LoCoMoConversation): Promise<void> {
   const sessions = new Map<number, LoCoMoTurn[]>();
   for (const turn of conv.turns) {
     if (!sessions.has(turn.session_id)) sessions.set(turn.session_id, []);
     sessions.get(turn.session_id)!.push(turn);
   }
 
-  // OPT-6: import extractFacts lazily
-  let extractFactsFn: ((content: string, llm: any) => Promise<string[]>) | null = null;
-  let llmClient: any = null;
-  if (extractFactsMode) {
-    const { extractFacts } = await import('./extract-facts');
-    const OpenAI = (await import('openai')).default;
-    llmClient = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? 'sk-xxx',
-      baseURL: process.env.OPENAI_BASE_URL,
-    });
-    extractFactsFn = extractFacts;
-  }
-
   for (const [sessionId, turns] of sessions) {
-    // OPT-6: accumulate session text, extract facts per session
-    if (extractFactsMode && extractFactsFn && llmClient) {
-      const sessionText = turns
-        .filter(t => t.text && t.text.trim().length >= 10)
-        .map(t => `${t.speaker}: ${t.text}`)
-        .join('\n');
-      if (sessionText.length === 0) continue;
-
-      const facts = await extractFactsFn(sessionText, llmClient);
-      const factsToWrite = facts.length > 0 ? facts : [sessionText]; // fallback to raw
-
-      for (const fact of factsToWrite) {
-        const req: WriteMemoryRequest = {
-          content: fact,
-          agent_id: `locomo-${conv.conversation_id}`,
-          scope: 'project',
-          project_id: `locomo-${conv.conversation_id}`,
-          memory_type: 'fact',
-          source_type: 'confirmed',
-          confidence: 0.9,
-          importance_score: 0.7,
-          entity_tags: [`session:${sessionId}`, 'opt6:extracted'],
-          source_context: `LoCoMo session ${sessionId} (extracted)`,
-          skipConflictCheck: true,
-        };
-        await writeMemory(req);
-      }
-      continue;
-    }
-
     for (const turn of turns) {
       if (!turn.text || turn.text.trim().length < 10) continue;
 
@@ -307,57 +263,24 @@ async function ingestConversation(conv: LoCoMoConversation, extractFactsMode: bo
 /**
  * Evaluate a single QA pair with configurable top-k
  */
-/** Search event index directly by agent_id (bypasses scope filter) */
-async function searchEventMemories(
-  query: string,
-  agentId: string,
-  topK: number = 5,
-  minSimilarity: number = 0.5
-): Promise<{ content: string }[]> {
-  const { generateEmbedding } = await import('../../src/memory/embedding/index');
-  const db = await getDb();
-  const emb = await generateEmbedding(query);
-  const result = await db.query(
-    `SELECT content, 1 - (embedding <=> $1::vector) AS sim
-     FROM memories
-     WHERE agent_id = $2
-       AND status = 'active'
-       AND archived_at IS NULL
-       AND 1 - (embedding <=> $1::vector) > $3
-     ORDER BY sim DESC
-     LIMIT $4`,
-    [JSON.stringify(emb), agentId, minSimilarity, topK]
-  );
-  return result.rows;
-}
-
 async function evaluateQA(
   qa: LoCoMoQA,
   conversationId: string,
   topK: number = 5,
-  useLLM: boolean = false,
-  useEvents: boolean = true
+  useLLM: boolean = false
 ): Promise<{ correct: boolean; f1Correct: boolean; retrievalMs: number }> {
   const start = Date.now();
 
   let results: Awaited<ReturnType<typeof searchMemories>>;
-  let eventMemories: { content: string }[] = [];
   try {
-    // Parallel retrieval: chunks + event index (skip events if useEvents=false)
-    const eventPromise = useEvents
-      ? searchEventMemories(qa.question, `locomo-events-${conversationId}`, 5, 0.5).catch(() => [])
-      : Promise.resolve([]);
-    [results, eventMemories] = await Promise.all([
-      searchMemories({
-        query: qa.question,
-        agent_id: `locomo-${conversationId}`,
-        scope_filter: ['project'],
-        project_id: `locomo-${conversationId}`,
-        top_k: topK,
-        min_similarity: 0.5,
-      }),
-      eventPromise,
-    ]);
+    results = await searchMemories({
+      query: qa.question,
+      agent_id: `locomo-${conversationId}`,
+      scope_filter: ['project'],
+      project_id: `locomo-${conversationId}`,
+      top_k: topK,
+      min_similarity: 0.5,
+    });
   } catch (err) {
     console.warn(`    [evaluateQA] searchMemories failed: ${(err as Error).message}`);
     return { correct: false, f1Correct: false, retrievalMs: Date.now() - start };
@@ -374,26 +297,20 @@ async function evaluateQA(
   });
 
   if (useLLM && results.memories.length > 0) {
-    // OPT-3: LLM 回答层 + event index (events first for temporal anchoring)
+    // OPT-2: LLM 回答层
     try {
-      const eventContext = eventMemories.length
-        ? `[Events with timestamps - reference for time-related questions]\n` +
-          eventMemories.map((m, i) => `[E${i + 1}] ${m.content}`).join('\n')
-        : '';
-      const chunkContext = results.memories
+      const context = results.memories
         .map((m, i) => `[${i + 1}] ${m.content}`)
         .join('\n');
-      const context = eventContext
-        ? `${eventContext}\n\n[Conversation excerpts]\n${chunkContext}`
-        : chunkContext;
-      // H4: category-specific prompts
-      const isAdversarial = qa.category === 'adversarial';
-      const isOpenDomain = qa.category === 'open_domain';
-      const prompt = isAdversarial
-        ? `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.\n\nContext:\n${context}\n\nQuestion: ${qa.question}\n\nIf the answer cannot be determined from the context, respond with "None".\nRespond with ONLY the answer (a few words), no explanation.`
-        : isOpenDomain
-        ? `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.\n\nContext:\n${context}\n\nQuestion: ${qa.question}\n\nInstructions:\n- Answer based on what you find in the context.\n- Give your best answer even if uncertain; provide specific facts (names, places, activities) from the context.\n- Only respond with "None" if there is truly no relevant information.\nRespond with ONLY the answer (a few words), no explanation.`
-        : `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.\n\nContext:\n${context}\n\nQuestion: ${qa.question}\n\nIf the answer cannot be determined from the context, respond with "None".\nRespond with ONLY the answer (a few words), no explanation.`;
+      const prompt = `You are a question answering assistant. Based on the following context from a conversation history, answer the question concisely.
+
+Context:
+${context}
+
+Question: ${qa.question}
+
+If the answer cannot be determined from the context, respond with "None".
+Respond with ONLY the answer (a few words), no explanation.`;
 
       const llmAnswer = await callLLMForAnswer(prompt);
       // Use semantic judge (CoT v3) as main metric
@@ -415,8 +332,7 @@ async function evaluateConversationQAs(
   conv: LoCoMoConversation,
   topK: number,
   qaParallelism: number,
-  useLLM: boolean = false,
-  useEvents: boolean = true
+  useLLM: boolean = false
 ): Promise<{
   correct: number;
   f1Correct: number;
@@ -429,7 +345,7 @@ async function evaluateConversationQAs(
   let totalMs = 0;
 
   const tasks = conv.qa_pairs.map((qa) => async () => {
-    const { correct: isCorrect, f1Correct: isF1Correct, retrievalMs } = await evaluateQA(qa, conv.conversation_id, topK, useLLM, useEvents);
+    const { correct: isCorrect, f1Correct: isF1Correct, retrievalMs } = await evaluateQA(qa, conv.conversation_id, topK, useLLM);
     return { isCorrect, isF1Correct, retrievalMs, category: qa.category };
   });
 
@@ -462,12 +378,11 @@ async function evaluateConversationQAs(
  */
 async function ingestConversationsParallel(
   conversations: LoCoMoConversation[],
-  concurrency: number,
-  extractFactsMode: boolean = false
+  concurrency: number
 ): Promise<void> {
   const tasks = conversations.map((conv) => async () => {
     try {
-      await ingestConversation(conv, extractFactsMode);
+      await ingestConversation(conv);
     } catch (err) {
       console.error(`  Ingestion failed for ${conv.conversation_id}:`, err);
     }
@@ -485,11 +400,8 @@ async function runBenchmark(options: {
   concurrency?: number;
   conversationId?: string;
   useLLM?: boolean;
-  useEvents?: boolean;
-  extractFactsMode?: boolean;
-  skipIngest?: boolean;
 }): Promise<BenchmarkResult[]> {
-  const { dataPath, sampleSize, topK = 5, concurrency = 3, conversationId, useLLM = false, useEvents = true, extractFactsMode = false, skipIngest = false } = options;
+  const { dataPath, sampleSize, topK = 5, concurrency = 3, conversationId, useLLM = false } = options;
 
   const rawData: any[] = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
 
@@ -536,20 +448,16 @@ async function runBenchmark(options: {
 
   console.log(`\n[Benchmark] Ingesting ${conversations.length} conversations with concurrency=${concurrency}...`);
   
-  // Parallel ingestion (skip if --skip-ingest flag)
-  if (!options.skipIngest) {
+  // Parallel ingestion
   for (let i = 0; i < conversations.length; i += concurrency) {
     const batch = conversations.slice(i, i + concurrency);
     for (const conv of batch) {
       console.log(`  Ingesting ${conv.conversation_id} (${conv.turns.length} turns)...`);
     }
-    await ingestConversationsParallel(batch, concurrency, extractFactsMode);
+    await ingestConversationsParallel(batch, concurrency);
     for (const conv of batch) {
       console.log(`    ✓ ${conv.conversation_id} ingested`);
     }
-  }
-  } else {
-    console.log('  [skip-ingest] Skipping ingestion, using existing memories in DB.');
   }
 
   console.log(`\n[Benchmark] Evaluating QAs with top_k=${topK}${useLLM ? ' + LLM answer layer' : ''}...`);
@@ -557,7 +465,7 @@ async function runBenchmark(options: {
   const results: BenchmarkResult[] = [];
 
   for (const conv of conversations) {
-    const { correct, f1Correct, totalMs, byCategory } = await evaluateConversationQAs(conv, topK, 2, useLLM, useEvents);
+    const { correct, f1Correct, totalMs, byCategory } = await evaluateConversationQAs(conv, topK, 2, useLLM);
 
     const result: BenchmarkResult = {
       conversation_id: conv.conversation_id,
@@ -631,9 +539,6 @@ async function main() {
   const concurrency = concArg ? parseInt(concArg.split('=')[1]) : 3;
 
   const useLLM = args.includes('--llm');
-  const useEvents = !args.includes('--no-events');
-  const extractFactsMode = args.includes('--extract-facts');
-  const skipIngest = args.includes('--skip-ingest');
 
   const results = await runBenchmark({
     dataPath,
@@ -642,14 +547,11 @@ async function main() {
     concurrency,
     conversationId: convArg ? convArg.split('=')[1] : undefined,
     useLLM,
-    useEvents,
-    extractFactsMode,
-    skipIngest,
   });
 
   printSummary(results, topK);
 
-  const suffix = useLLM ? (useEvents ? `llm-events-topk${topK}` : extractFactsMode ? `opt6-topk${topK}` : `llm-topk${topK}`) : `parallel-topk${topK}`;
+  const suffix = useLLM ? `llm-topk${topK}` : `parallel-topk${topK}`;
   const outPath = path.join(__dirname, 'results', `${suffix}-${Date.now()}.json`);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify({ results, topK, useLLM, timestamp: new Date().toISOString() }, null, 2));
