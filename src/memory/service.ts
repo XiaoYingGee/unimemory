@@ -375,7 +375,7 @@ export async function searchMemoriesHybrid(
         *,
         1 - (embedding <=> $1::vector) AS vec_score,
         COALESCE(
-          ts_rank_cd(to_tsvector('simple', content), plainto_tsquery('simple', $2)),
+          ts_rank_cd(to_tsvector('english', content), websearch_to_tsquery('english', $2)),
           0
         ) AS bm25_raw,
         CASE WHEN entity_tags && $3::text[] THEN 1.0 ELSE 0.0 END AS entity_boost
@@ -411,10 +411,11 @@ export async function searchMemoriesHybrid(
   ];
 
   // Fix param indices for project_id
-  const finalParams: (string | number | string[])[] = [
+  const finalParams: (string | number | string[] | null)[] = [
     JSON.stringify(queryEmbedding),
     req.query,
     entityHints,
+    req.agent_id ?? null,
     req.project_id ?? null,
     minConfidence,
     topK,
@@ -426,17 +427,17 @@ export async function searchMemoriesHybrid(
         *,
         1 - (embedding <=> $1::vector) AS vec_score,
         COALESCE(
-          ts_rank_cd(to_tsvector('simple', content), plainto_tsquery('simple', $2)),
+          ts_rank_cd(to_tsvector('english', content), websearch_to_tsquery('english', $2)),
           0
         ) AS bm25_raw,
         CASE WHEN entity_tags && $3::text[] THEN 1.0 ELSE 0.0 END AS entity_boost
       FROM memories
       WHERE
-        agent_id != 'private'
-        AND archived_at IS NULL
+        archived_at IS NULL
         AND status IN ('active', 'disputed')
-        AND confidence >= $5
-        AND ($4::text IS NULL OR scope = 'global' OR (scope = 'project' AND project_id = $4))
+        AND confidence >= $6
+        AND ($4::text IS NULL OR agent_id = $4)
+        AND ($5::text IS NULL OR scope = 'global' OR (scope = 'project' AND project_id = $5))
     ),
     ranked AS (
       SELECT *,
@@ -446,7 +447,7 @@ export async function searchMemoriesHybrid(
     )
     SELECT * FROM ranked
     ORDER BY hybrid_score DESC
-    LIMIT $6
+    LIMIT $7
   `;
 
   const result = await db.query(finalQuery, finalParams);
