@@ -33,8 +33,10 @@ export async function dumpRetrieval(
     bm25:   parseFloat(process.env.UNIMEMORY_WEIGHT_BM25   ?? '0.3'),
     entity: parseFloat(process.env.UNIMEMORY_WEIGHT_ENTITY ?? '0.1'),
   };
-  const queryWords = query.toLowerCase().split(/\W+/).filter(w => w.length > 3);
-  const entityHints = queryWords.map(w => `speaker:${w}`).concat(queryWords.map(w => `session:${w}`));
+  const capitalWords = query.match(/\b[A-Z][a-z]+\b/g) ?? [];
+  const entityHints = capitalWords.length > 0
+    ? capitalWords.map(w => `speaker:${w}`)
+    : [];
 
   const sql = `
     WITH base AS (

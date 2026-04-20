@@ -399,8 +399,11 @@ export async function searchMemoriesHybrid(
   `;
 
   // Extract rough entity hints from query (simple word extraction)
-  const queryWords = req.query.toLowerCase().split(/\W+/).filter(w => w.length > 3);
-  const entityHints = queryWords.map(w => `speaker:${w}`).concat(queryWords.map(w => `session:${w}`));
+  // H1.3 R3 fix: 提取大写开头词（人名/地名）直接匹配 stored speaker:Name tags
+  const capitalWords = req.query.match(/\b[A-Z][a-z]+\b/g) ?? [];
+  const entityHints = capitalWords.length > 0
+    ? capitalWords.map(w => `speaker:${w}`)
+    : [];  // 无大写词时 entity hints 为空，避免噪声
 
   const params = [
     JSON.stringify(queryEmbedding),
